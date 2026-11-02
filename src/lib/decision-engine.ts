@@ -142,6 +142,16 @@ export function applySupportValue(
   component: SupportComponent,
   value: number,
 ): SupportComponent {
+  if (component.parameters) {
+    const fields = { steel:'spacingCm',shot:'thicknessCm',anchor:'lengthM',advance:'ringSpacingCm' };
+    const p = { ...component.parameters,[fields[component.key]]:value };
+    const layouts = {
+      steel:`间距 ${p.spacingCm} cm`,shot:`厚度 ${p.thicknessCm} cm`,
+      anchor:`长度 ${p.lengthM} m；纵向 ${p.longitudinalSpacingCm} cm × 环向 ${p.circumferentialSpacingCm} cm`,
+      advance:`长度 ${p.lengthM} m；环距 ${p.ringSpacingCm} cm；${p.scope}`,
+    };
+    return { ...component,valNum:value,parameters:p,layout:layouts[component.key] };
+  }
   let layout = component.layout;
   switch (component.key) {
     case 'steel':

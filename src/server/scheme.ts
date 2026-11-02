@@ -1,3 +1,4 @@
+import { getLocalTestDatabase,isLocalTestCatalog } from './catalog-store';
 import { schemeHistoryData } from "@/data/scheme";
 import { advanceToMeters, durationToMinutes } from "@/lib/measurements";
 import type { HistoryRecord, SchemeHistoryData, SchemeReport } from "@/lib/types";
@@ -19,7 +20,8 @@ interface SchemeHistoryRow {
   rock: string;
   method: string;
   type: string;
-  score: string | number;
+  score: string | number | null;
+  evaluation_status?: string | null;
   advance: string;
   detail: string;
   custom: boolean;
@@ -38,7 +40,8 @@ function toRecord(row: SchemeHistoryRow): HistoryRecord {
     rock: row.rock,
     method: row.method,
     type: row.type,
-    score: Number(row.score),
+    score: row.score === null ? null : Number(row.score),
+    evaluationStatus:row.evaluation_status,
     advance: row.advance,
     detail: row.detail,
     source: row.source,
@@ -52,6 +55,11 @@ function toRecord(row: SchemeHistoryRow): HistoryRecord {
 
 /** 查询台账列表，读取无副作用 */
 export async function listSchemeHistory(): Promise<SchemeHistoryData> {
+  if (isLocalTestCatalog()) {
+    const result=await (await getLocalTestDatabase()).query<SchemeHistoryRow & Record<string,unknown>>('SELECT * FROM scheme_history ORDER BY time,id');
+    const records=result.rows.map(toRecord);
+    return { ...schemeHistoryData,records,faces:['全部工作面',...new Set(records.map((item) => item.face))] };
+  }
   // 未配置数据库时提供内置台账供本地浏览；写操作仍需数据库。
   if (!hasSupabaseCredentials()) return {
     ...structuredClone(schemeHistoryData),
@@ -127,12 +135,32 @@ export async function importSchemeHistory(
 
 /** 删除单条决策记录 */
 export async function deleteSchemeHistory(id: number): Promise<void> {
+  await deleteHistoryIds([id]);
+}
+
+async function deleteHistoryIds(ids: number[]): Promise<number> {
+  if (isLocalTestCatalog()) {
+    const result=await (await getLocalTestDatabase()).query<{ count:number }>('SELECT delete_scheme_history($1::integer[]) AS count',[ids]);
+    return result.rows[0].count;
+  }
   const client = getSupabaseClient();
-  const { error } = await client.from("scheme_history").delete().eq("id", id);
+  const { data,error } = await client.rpc('delete_scheme_history',{ p_ids:ids });
   if (error) throw error;
+  return Number(data);
+}
+
+export async function clearLocalTestHistory(): Promise<number> {
+  if (!isLocalTestCatalog()) throw new Error('清空测试记录仅在 dev:d1 本地测试模式可用');
+  const db=await getLocalTestDatabase();
+  const result=await db.query<{ id:number }>('SELECT id FROM scheme_history');
+  return deleteHistoryIds(result.rows.map((row) => row.id));
 }
 
 export async function getSchemeReport(id: string): Promise<SchemeReport | null> {
+  if (isLocalTestCatalog()) {
+    const result=await (await getLocalTestDatabase()).query<{ content:SchemeReport }>('SELECT content FROM scheme_report WHERE id=$1',[id]);
+    return result.rows[0]?.content ?? null;
+  }
   const client = getSupabaseClient();
   const { data, error } = await client.from('scheme_report').select('content').eq('id', id).maybeSingle();
   if (error) throw error;

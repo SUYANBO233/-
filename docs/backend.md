@@ -1,6 +1,6 @@
 # Python 后端与算法替换
 
-现有 Next.js 服务继续负责经验库、台账及 Supabase 持久化。新增 Python 服务负责决策计算，接口和算法实现相互独立。现有 Codespaces Python 直接运行，不创建虚拟环境，也不安装大型机器学习框架。
+现有 Next.js 服务负责经验库、台账及持久化，并为 Python 提供带内部认证的资料快照。D1 默认算法为 `app.algorithms.configurable:create_algorithm`；显式本地测试使用 PGlite，正常模式使用 Supabase。新增 Python 服务负责决策计算，接口和算法实现相互独立。现有 Codespaces Python 直接运行，不创建虚拟环境，也不安装大型机器学习框架。
 
 ## 启动
 
@@ -13,7 +13,7 @@ pnpm backend:install
 同时启动前端和 Python 后端：
 
 ```bash
-pnpm dev:all
+pnpm dev:d1
 ```
 
 - 系统页面：`http://localhost:5000`
@@ -21,7 +21,7 @@ pnpm dev:all
 - 接口文档：`http://127.0.0.1:8000/docs`
 - OpenAPI 契约：`http://127.0.0.1:8000/openapi.json`
 
-也可以分别在两个终端执行 `pnpm backend:dev` 和 `pnpm dev`。仅启动 `pnpm dev` 时，算法请求仍需要已有的 Python 服务；连接失败会明确报错，不自动切换到浏览器规则。
+连接数据库时执行 `pnpm dev:all`。联合启动自动为 Next.js 与 Python 生成内部资料密钥。也可以分别执行 `pnpm backend:dev` 和 `pnpm dev`，但需在两边配置相同 `DECISION_CATALOG_API_KEY` 和正确 `DECISION_CATALOG_URL`。仅启动 `pnpm dev` 时，算法请求仍需要已有的 Python 服务；连接失败会明确报错，不自动切换到浏览器规则。
 
 需要指定另一已有解释器时，可在终端 `export BACKEND_PYTHON=/path/to/python3`；`dev:all` 也会读取 `.env.local` 中的该配置。`backend/requirements.txt` 锁定本次测试的依赖，`requirements.in` 记录直接依赖范围。测试使用标准库 unittest，没有额外安装 pytest。
 
@@ -54,7 +54,7 @@ flowchart LR
   SAVE --> DB[Supabase 原子保存事务]
 ```
 
-保存接口归属于 `/api/scheme/*`。`/api/decision/*` 仅作 Python 计算接口代理，修正了原先把保存接口放在该前缀下的问题。所有计算都走同一个配置的算法，保存时不会换用另一套 TypeScript 计算结果。
+保存接口归属于 `/api/scheme/*`。`/api/decision/*` 仅作 Python 计算接口代理，修正了原先把保存接口放在该前缀下的问题。所有计算都走同一个配置的算法，保存时不会换用另一套 TypeScript 计算结果。D1 每次请求读取并冻结一份资料，版本包含内容摘要；后续步骤若版本变化返回 409，要求重新匹配。
 
 ## 接口
 
@@ -63,6 +63,9 @@ flowchart LR
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/decision/meta` | 工作面、里程选项及算法信息 |
+| POST | `/api/decision/synchronize` | 按工作面、精确里程和查询时间读取采集资料，返回冲突/缺项/来源 |
+| POST | `/api/decision/support-options` | 查询同优先级完整模板，供人工确认 |
+| POST | `/api/decision/preview-rule` | 对输入条件预览规则命中，未写入数据库 |
 | POST | `/api/decision/infer-methods` | 地质参数 → 候选工法和推荐标记 |
 | POST | `/api/decision/design-support` | 地质参数和选定工法 → 四构件设计、评估、成拱参数 |
 | POST | `/api/decision/recheck-safety` | 按当前修改后的构件配置重新评估 |
@@ -72,11 +75,11 @@ flowchart LR
 
 输入校验覆盖字段类型、有限数值、数值范围、未知字段、重复或缺少构件。前端也通过 Zod 校验后端响应。后端未启动、超时、无效 JSON、无效计算结果都返回明确错误，不静默降级。
 
-支护数值变化后会合并短时间内的输入并请求重新评估，期间旧评分失效，报告生成按钮禁用。推荐项直接使用算法返回的 `matched`，不再由前端按围岩等级重新选定。成拱参数和报告也来自 Python。
+支护数值变化后旧结果失效，需点击重新检查；期间报告生成按钮禁用。D1 尚无响应模型与判据，明确返回 unavailable、空分数、空雷达图和空成拱参数。推荐项直接使用算法返回的 `matched`，不再由前端按围岩等级重新选定。成拱参数和报告也来自 Python。
 
-## 当前参考算法的范围
+## 显式旧参考算法的范围
 
-当前默认实现是项目已有 UI 规则的移植，**不是通过试验标定或规范验证的工程设计模型**：
+仅在显式配置 `app.algorithms.reference:create_algorithm` 时使用旧参考算法，它是项目已有 UI 规则的移植，**不是通过试验标定或规范验证的工程设计模型**：
 
 - 工法推荐按围岩等级选择，参考分数沿用现有 98/60/45；其余输入参数被校验和记录，但不虚构它们对评分的影响。
 - 支护设计仅提供现有 IV、V 级围岩的模板。其他等级的设计请求明确返回不支持，避免把 IV 级模板套用到未知地质条件。
@@ -122,7 +125,7 @@ DECISION_BACKEND_TIMEOUT_MS=30000
 
 ## 替换数据来源或整个应用
 
-默认 `JsonCatalogRepository` 读取现有参考数据快照，数据库中新建的支护模板不会自动进入算法。后续实现 `CatalogRepository.read() -> Catalog`，从数据库、地质平台或其他服务返回同样的数据结构，然后在应用工厂中注入：
+D1 默认 `HttpCatalogRepository` 从 Next.js 内部接口读取数据库快照；规则和完整模板的启停会影响下一次匹配。`JsonCatalogRepository` 仅用于显式旧参考算法或注入的测试。后续实现 `CatalogRepository.read() -> Catalog`，从数据库、地质平台或其他服务返回同样的数据结构，然后在应用工厂中注入：
 
 ```python
 app = create_app(repository=YourCatalogRepository())
@@ -155,3 +158,12 @@ Supabase 持久化仍需按 [数据库部署说明](database.md) 配置并迁移
 ## 设计参考
 
 接口拆分沿用 [FastAPI APIRouter](https://fastapi.tiangolo.com/tutorial/bigger-applications/) 和[响应模型校验](https://fastapi.tiangolo.com/tutorial/response-model/)的组织方式。目录划分和算法插件协议是本项目的工程选择，不是框架强制要求。
+
+
+## D1 契约变化
+
+工法推荐允许零个或多个 matched，并返回状态、规则版本与原因；不再要求唯一推荐。支护构件包含结构化参数，conf 可为空；评价的 score/radar 与成拱参数可以为空，空值不能当作 0 或通过。旧参考算法的分数仍可读取，但新界面只标为旧版参考。
+
+完整模板通过 code/version 选择，并贯穿重新检查、报告和保存重放。保存重放校验规则/模板摘要，版本变化返回 409；缺少旧版本时不会改用新版本。D1 先采用冲突后重新匹配，尚不提供跨版本重算页面。
+
+维护接口位于 `/api/knowledge/decision-catalog`，内部读取接口位于 `/api/internal/decision-catalog`。后者需要 `X-Catalog-Key`，不会通过浏览器的决策代理公开。完整运行、临时数据与浏览器测试见 [d1.md](d1.md)。

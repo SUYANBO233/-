@@ -1,6 +1,7 @@
 'use client';
 
 /** Transport can be replaced without changing view components. Backend is the default. */
+import { geoParamsSchema } from './validation/geo';
 import { assessSafety, designSupport, getArchMechanism, inferMethods, generateScheme } from './decision-engine';
 import {
   designSupport as apiDesignSupport, inferMethods as apiInferMethods,
@@ -35,22 +36,22 @@ export async function loadDecisionMeta(): Promise<DecisionMeta> {
 
 export async function inferMethodCandidates(request: InferMethodsRequest): Promise<InferMethodsResult> {
   if (DECISION_CHANNEL === 'backend') return apiInferMethods(request);
-  return { methods: inferMethods(request.params), algorithm: MOCK_ALGORITHM };
+  return { methods: inferMethods(geoParamsSchema.parse(request.params)), algorithm: MOCK_ALGORITHM };
 }
 
 export async function designSupportCandidates(request: InferMethodsRequest & { methodKey: string }): Promise<SupportDesignResult> {
   if (DECISION_CHANNEL === 'backend') return apiDesignSupport(request);
-  const support = designSupport(request.params, request.methodKey);
-  return { support, safety: { ...assessSafety(request.params, support), algorithm: MOCK_ALGORITHM },
-    mechanism: getArchMechanism(request.params.grade), algorithm: MOCK_ALGORITHM };
+  const support = designSupport(geoParamsSchema.parse(request.params), request.methodKey);
+  return { support, safety: { ...assessSafety(geoParamsSchema.parse(request.params), support), algorithm: MOCK_ALGORITHM },
+    mechanism: getArchMechanism(geoParamsSchema.parse(request.params).grade), algorithm: MOCK_ALGORITHM };
 }
 
 export async function recheckSupport(request: RecheckRequest) {
   if (DECISION_CHANNEL === 'backend') return apiRecheckSafety(request);
-  return { ...assessSafety(request.params, request.support), algorithm: MOCK_ALGORITHM };
+  return { ...assessSafety(geoParamsSchema.parse(request.params), request.support), algorithm: MOCK_ALGORITHM };
 }
 
 export async function buildSchemeReport(request: GenerateSchemeRequest) {
   if (DECISION_CHANNEL === 'backend') return generateSchemeApi(request);
-  return { ...generateScheme(request.params, request.mileage, request.methodKey, request.support), algorithm: MOCK_ALGORITHM };
+  return { ...generateScheme(geoParamsSchema.parse(request.params), request.mileage, request.methodKey, request.support), algorithm: MOCK_ALGORITHM };
 }

@@ -1,4 +1,4 @@
-import { decisionMetaSchema, inferMethodsResultSchema, supportDesignResultSchema, safetySchema, schemeReportSchema, parseDecisionResponse } from './validation/decision-response';
+import { decisionMetaSchema, inferMethodsResultSchema, supportDesignResultSchema, safetySchema, schemeReportSchema, synchronizeSchema, supportOptionsSchema, parseDecisionResponse } from './validation/decision-response';
 import type {
   DecisionMeta,
   EquipmentItem,
@@ -137,6 +137,16 @@ export async function deleteSchemeHistory(id: number): Promise<void> {
   await delJSON(`/api/scheme?id=${id}`);
 }
 
+export async function clearLocalTestHistory(confirmation:string):Promise<number> {
+  const response=await fetch('/api/scheme?scope=local-test',{
+    method:'DELETE',headers:{ 'Content-Type':'application/json' },body:JSON.stringify({ confirmation }),
+  });
+  const data:unknown=await response.json();
+  if (!response.ok) throw new Error(data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' ? data.message : '清空失败');
+  if (!data || typeof data !== 'object' || !('count' in data) || typeof data.count !== 'number') throw new Error('清空接口响应无效');
+  return data.count;
+}
+
 /* ---- 经验数据库：装备 ---- */
 
 export async function createEquipment(
@@ -220,23 +230,30 @@ export async function fetchDecisionMeta(): Promise<DecisionMeta> {
 }
 
 export interface InferMethodsRequest {
-  params: GeoParams;
+  params: Partial<GeoParams>;
+  algorithm?: import('./types').AlgorithmInfo;
+  observationId?: string | null;
+  manualReason?: string;
+  template?: import('./types').TemplateReference | null;
   workface?: string;
   mileage?: string;
 }
 
+function decisionRequest(request: InferMethodsRequest) {
+  const { params,workface,mileage,algorithm,observationId,manualReason,template }=request;
+  return { params,workface,mileage,algorithm,observationId,manualReason,template };
+}
+
 export async function inferMethods(request: InferMethodsRequest): Promise<InferMethodsResult> {
-  return parseDecisionResponse(inferMethodsResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/infer-methods`, request));
+  return parseDecisionResponse(inferMethodsResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/infer-methods`, decisionRequest(request)));
 }
 
-export async function designSupport(request: {
-  params: GeoParams; methodKey: string; workface?: string; mileage?: string;
-}): Promise<SupportDesignResult> {
-  return parseDecisionResponse(supportDesignResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/design-support`, request));
+export async function designSupport(request: InferMethodsRequest & { methodKey: string }): Promise<SupportDesignResult> {
+  return parseDecisionResponse(supportDesignResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/design-support`, { ...decisionRequest(request),methodKey:request.methodKey }));
 }
 
-export interface RecheckRequest {
-  params: GeoParams;
+export interface RecheckRequest extends InferMethodsRequest {
+  params: Partial<GeoParams>;
   methodKey: string;
   support: SupportComponent[];
   workface?: string;
@@ -244,11 +261,18 @@ export interface RecheckRequest {
 }
 
 export async function recheckSafety(request: RecheckRequest): Promise<SafetyAssessment> {
-  return parseDecisionResponse(safetySchema, await postJSON<unknown>(`${DECISION_API_BASE}/recheck-safety`, request));
+  return parseDecisionResponse(safetySchema, await postJSON<unknown>(`${DECISION_API_BASE}/recheck-safety`, { ...decisionRequest(request),methodKey:request.methodKey,support:request.support }));
 }
 
 export interface GenerateSchemeRequest extends RecheckRequest { mileage: string }
 
 export async function generateSchemeApi(request: GenerateSchemeRequest): Promise<SchemeReport> {
-  return parseDecisionResponse(schemeReportSchema, await postJSON<unknown>(`${DECISION_API_BASE}/generate-scheme`, request));
+  return parseDecisionResponse(schemeReportSchema, await postJSON<unknown>(`${DECISION_API_BASE}/generate-scheme`, { ...decisionRequest(request),methodKey:request.methodKey,support:request.support }));
+}
+
+export async function synchronizeDecision(workface: string,mileage: string) {
+  return parseDecisionResponse(synchronizeSchema,await postJSON<unknown>(`${DECISION_API_BASE}/synchronize`,{workface,mileage}));
+}
+export async function fetchSupportOptions(request: InferMethodsRequest & { methodKey: string }) {
+  return parseDecisionResponse(supportOptionsSchema,await postJSON<unknown>(`${DECISION_API_BASE}/support-options`,{ ...decisionRequest(request),methodKey:request.methodKey }));
 }

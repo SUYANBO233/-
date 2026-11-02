@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm';
 import {
-  project, tunnel, workface, tunnelSegment, constructionMethod, supportScheme,
+  project, tunnel, workface, tunnelSegment, constructionMethod, supportScheme, decisionRule,
   knowledgeMapping, geoObservation, decisionRun, decisionRevision, schemeReport, schemeHistory,
 } from './schema';
 
@@ -51,4 +51,9 @@ export const historyRelations = relations(schemeHistory, ({ one }) => ({
   method: one(constructionMethod, { fields: [schemeHistory.methodId], references: [constructionMethod.id] }),
   run: one(decisionRun, { fields: [schemeHistory.decisionRunId], references: [decisionRun.id] }),
   report: one(schemeReport, { fields: [schemeHistory.schemeReportId], references: [schemeReport.id] }),
+}));
+
+export const decisionRuleRelations = relations(decisionRule,({ one }) => ({
+  method:one(constructionMethod,{ fields:[decisionRule.methodKey],references:[constructionMethod.code] }),
+  template:one(supportScheme,{ fields:[decisionRule.templateCode,decisionRule.templateVersion],references:[supportScheme.code,supportScheme.version] }),
 }));

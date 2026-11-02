@@ -4,7 +4,7 @@ import { DecisionBackendError, requestDecisionBackend } from '@/server/decision-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const POST_OPERATIONS = new Set(['infer-methods', 'design-support', 'recheck-safety', 'generate-scheme']);
+const POST_OPERATIONS = new Set(['infer-methods', 'design-support', 'recheck-safety', 'generate-scheme', 'synchronize', 'support-options', 'preview-rule']);
 type Context = { params: Promise<{ path: string[] }> };
 
 async function forward(request: Request, context: Context): Promise<Response> {

@@ -1,6 +1,8 @@
 import { listSchemeHistory } from '@/server/scheme';
 import { TopBar } from '@/components/overview/top-bar';
 import { HistoryLedger } from '@/components/scheme/history-ledger';
+import { isLocalTestCatalog } from '@/server/catalog-store';
+import { hasSupabaseCredentials } from '@/storage/database/supabase-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +37,8 @@ export default async function SchemePage() {
           subtitle={data.subtitle}
           faces={data.faces}
           records={data.records}
+          canDelete={isLocalTestCatalog() || hasSupabaseCredentials()}
+          localTest={isLocalTestCatalog()}
         />
       </main>
     </div>

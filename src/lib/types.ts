@@ -124,7 +124,11 @@ export interface ConstructionMethod {
 /** 工法匹配评分结果 */
 export interface MethodMatch extends ConstructionMethod {
   /** 匹配度 0~100 */
-  score: number;
+  score: number | null;
+  status?: 'recommended' | 'candidate' | 'inapplicable' | 'insufficient' | 'uncovered' | null;
+  reasons?: string[];
+  rules?: { code: string; version: number; priority: number }[];
+  priority?: number | null;
   /** 是否为当前围岩的推荐匹配项 */
   matched: boolean;
 }
@@ -143,7 +147,8 @@ export interface SupportComponent {
   unit: string;
   basis: string;
   /** 置信度 0~1 */
-  conf: number;
+  conf: number | null;
+  parameters?: Record<string, string | number> | null;
   color: string;
 }
 
@@ -165,12 +170,14 @@ export interface SafetyRadar {
 
 /** 初期支护安全度评估结果 */
 export interface SafetyAssessment {
+  status?: 'reference' | 'unavailable' | 'satisfied' | 'unsatisfied';
+  scope?: string;
   algorithm?: AlgorithmInfo;
   /** 综合安全度 0~100 */
-  score: number;
+  score: number | null;
   tag: string;
   reason: string;
-  radar: SafetyRadar;
+  radar: SafetyRadar | null;
 }
 
 /** 方案报告单行 */
@@ -193,19 +200,24 @@ export interface SchemeReport {
 }
 
 /** 一次支护设计或人工微调的输入，结果由服务端重新校核后保存。 */
+export interface TemplateReference { code: string; version: number }
+
 export interface DecisionRevisionInput {
+  template?: TemplateReference | null;
+  manualReason?: string;
   methodKey: 'full' | 'bench' | 'core';
   values: Record<SupportComponentType, number>;
   reason: string;
 }
 
 export interface SaveDecisionRequest {
+  observationId?: string | null;
   algorithm?: AlgorithmInfo;
   requestKey: string;
   mode: DecisionMode;
   workface: string;
   mileage: string;
-  params: GeoParams;
+  params: Partial<GeoParams>;
   revisions: DecisionRevisionInput[];
 }
 
@@ -231,7 +243,7 @@ export interface MileageOption {
   mile: string;
 }
 
-/** 18 项地质力学输入参数（字符串值，直接对应表单） */
+/** 16 项工程参数；数值字段采用明确单位。 */
 export interface GeoParams {
   hardness: string;
   integrity: string;
@@ -260,6 +272,7 @@ export interface DecisionMeta {
 
 /** 服务返回的算法标识；请求走 Python 并不意味着模型已经过工程标定。 */
 export interface AlgorithmInfo {
+  capabilities?: string[];
   id: string;
   version: string;
   reference: boolean;
@@ -274,7 +287,8 @@ export interface InferMethodsResult {
 export interface SupportDesignResult {
   support: SupportComponent[];
   safety: SafetyAssessment;
-  mechanism: ArchMechanism;
+  mechanism: ArchMechanism | null;
+  template?: TemplateReference | null;
   algorithm: AlgorithmInfo;
 }
 
@@ -417,7 +431,8 @@ export interface HistoryRecord {
   /** 衬砌类型 */
   type: string;
   /** 安全度评分（0~100） */
-  score: number;
+  score: number | null;
+  evaluationStatus?: string | null;
   /** 单次决策完整配置参数明细 */
   detail: string;
   /** 是否为用户新增/导入的记录（非内置标准项） */

@@ -11,9 +11,9 @@ interface FlowBarProps {
 }
 
 const STEPS: { step: DecisionStep; title: string; desc: string }[] = [
-  { step: 1, title: '地质参数', desc: '18项力学指标输入' },
+  { step: 1, title: '地质参数', desc: '工程参数与来源' },
   { step: 2, title: '钻爆工法对比匹配', desc: '台阶法 / 环形核心土法 / 全断面法' },
-  { step: 3, title: '支护参数设计', desc: '构件设计+成拱校核' },
+  { step: 3, title: '支护参数设计', desc: '完整配置与人工调整' },
   { step: 4, title: '施工配置方案报告', desc: '报告生成与归档' },
 ];
 

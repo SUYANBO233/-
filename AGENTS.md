@@ -88,16 +88,16 @@
 | 文件 | 类型 | 职责 |
 |---|---|---|
 | flow-bar.tsx | client | 四步流程条（可跳转） |
-| decision-workbench.tsx | client | Step1 工作台：模式切换 / 工作面选择 / 18 项地质参数 |
+| decision-workbench.tsx | client | Step1 工作台：模式切换 / 工作面选择 / 16 项工程参数 |
 | method-select.tsx | client | Step2 候选工法卡片（匹配度 + 选择） |
 | support-design.tsx | client | Step3 成拱机理 / 四构件微调 / 安全度仪表 / 雷达图 |
 | scheme-report.tsx | client | Step4 施工配置方案报告表 |
 | decision-placeholder.tsx | client | 未启动推理时的占位提示 |
 
-- 推理逻辑：`backend/app/algorithms/reference.py`（Python 参考算法，工法推理、支护设计、评估、出方案）；`src/lib/decision-engine.ts` 保留为显式离线演示。
+- 推理逻辑：`backend/app/algorithms/configurable.py`（D1 数据库规则与完整模板）；`reference.py` 保留为显式旧参考算法；`src/lib/decision-engine.ts` 保留为显式离线演示。
 - 静态数据：`src/data/decision.ts`（工法库、工作面、里程、围岩默认参数）。
 - 领域类型：`src/lib/types.ts` 中 `DecisionMode` / `GeoParams` / `MethodMatch` / `SupportComponent` / `SafetyAssessment` / `SchemeReport` 等。
-- **后端接入约定**：后端为 Python 服务，前端统一通过 `/api/decision/*` 同源路径访问（由部署层转发）。接口契约定义在 `src/lib/api.ts`（`inferMethods` / `designSupport` / `recheckSafety` / `generateSchemeApi`），目前已提供 Python 参考算法服务，默认由 Next.js 同源代理访问；`decision-engine.ts` 仅用于显式离线演示。保存接口为 `/api/scheme/save-decision`，完整实现与替换方法见文末 Python 后端约定及 `docs/backend.md`。
+- **后端接入约定**：后端为 Python 服务，前端统一通过 `/api/decision/*` 同源路径访问（由部署层转发）。接口契约定义在 `src/lib/api.ts`（`inferMethods` / `designSupport` / `recheckSafety` / `generateSchemeApi`），目前已提供 Python 规则服务，默认由 Next.js 同源代理访问；`decision-engine.ts` 仅用于显式离线演示。保存接口为 `/api/scheme/save-decision`，完整实现与替换方法见文末 Python 后端约定及 `docs/backend.md`。
 
 ### 经验数据库板块（`/knowledge`）
 
@@ -155,8 +155,16 @@ page.tsx (server，前端页面)
 ## Python 决策后端（已实现）
 
 - 独立服务位于 `backend/`，遵循 API 路由 → services → algorithms/repositories 分层。`backend/app/models.py` 与前端 camelCase 契约保持一致。
-- 直接使用 Codespaces 已有 `python3`，不创建虚拟环境。用 `pnpm backend:install` 安装依赖，`pnpm dev:all` 同时启动前后端。
+- 直接使用 Codespaces 已有 `python3`，不创建虚拟环境。`pnpm dev:all` 使用数据库；`pnpm dev:d1` 显式启用隔离 PGlite 与合成资料，绝不写 Supabase。
 - 默认决策计算通过 `/api/decision/*` 由 Next.js 代理到 Python；服务端地址由 `DECISION_BACKEND_URL` 配置。显式离线演示才使用 `NEXT_PUBLIC_DECISION_CHANNEL=mock`。
-- 算法实现遵循 `backend/app/algorithms/base.py`，通过 `DECISION_ALGORITHM_FACTORY` 加载。当前参考实现只支持 IV/V 级围岩支护模板；不得把参考评分表述为经规范验证的工程结论。
+- 算法实现遵循 `backend/app/algorithms/base.py`，通过 `DECISION_ALGORITHM_FACTORY` 加载。D1 默认 configurable 工厂按规则选择完整模板，允许零推荐、并列和无法评价；旧 reference 工厂仅显式启用。不得伪造评分、置信度或成拱参数。
 - 保存入口统一为 `/api/scheme/save-decision`；服务端调用 Python `build-snapshot` 重放版本后，使用已有 Supabase 事务保存。不要在数据库读写代码中复制算法。
 - 新算法或模板更改行为时更新版本号。输入/输出、版本变更、异常和算法替换均应测试；运行方法见 `docs/backend.md`。
+
+## D1 决策资料维护
+
+- 规则位于 `decision_rule`，完整规格位于 `support_scheme.parameters`。只有启用且结构完整的资料参与新计算；旧自由文本映射不直接执行。
+- 内部资料读取为认证的 `/api/internal/decision-catalog`；维护为 `/api/knowledge/decision-catalog`。数据库一致性快照由 `read_decision_catalog()` 提供，不用多次独立读取伪装同一版本。
+- 每次请求冻结资料摘要；后续步骤版本不同返回 409 重新匹配。发布为事务，同编码版本内容不可覆盖，启用新版本停用旧版本。
+- 缺失工程参数保持缺失，规则只使用已提供的合法字段；不把缺失值转为零。响应模型未接入时返回 unavailable 和空分数。
+- 迁移只追加；当前业务表 14 张。完整运行方法见 `docs/d1.md`，浏览器测试 `pnpm test:d1:browser` 使用独立本地目录与测试端口。

@@ -6,6 +6,7 @@ import { EquipmentTable } from "./equipment-table";
 import { MethodLibrary } from "./method-library";
 import { MappingTable } from "./mapping-table";
 import { SchemeLibrary } from "./scheme-library";
+import { DecisionCatalogManager } from './decision-catalog-manager';
 
 type SubTab = "methods" | "support" | "equipment";
 
@@ -29,13 +30,14 @@ export function ExperienceTabs({ data }: { data: KnowledgeData }) {
         </h1>
         <div className="sub-tab-capsule">
           {TABS.map((t) => (
-            <div
+            <button
+              type="button"
               key={t.key}
               className={`st-btn ${active === t.key ? "active" : ""}`}
               onClick={() => setActive(t.key)}
             >
               {t.label}
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -44,11 +46,12 @@ export function ExperienceTabs({ data }: { data: KnowledgeData }) {
         {active === "methods" && (
           <>
             <MethodLibrary data={data.methods} />
+            <DecisionCatalogManager focus="rules" />
             <MappingTable title={data.mappingTitle} data={data.mappings} />
           </>
         )}
         {active === "support" && (
-          <SchemeLibrary title={data.schemeTitle} data={data.schemes} />
+          <><DecisionCatalogManager focus="templates" /><SchemeLibrary title={`旧资料展示 · ${data.schemeTitle}`} data={data.schemes} /></>
         )}
         {active === "equipment" && (
           <EquipmentTable title={data.equipmentTitle} data={data.equipment} />

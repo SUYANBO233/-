@@ -1,0 +1,708 @@
+{
+  "methods": [
+    {
+      "key": "full",
+      "name": "全断面开挖法",
+      "rock": "Ⅰ、Ⅱ、Ⅲ 级围岩",
+      "cycle": "12.0 h",
+      "adv": "3.0 m",
+      "shot": "15 cm",
+      "month": "110 m/月",
+      "desc": "适用于岩体坚硬完整段，全断面一次爆破成型，大型机械化作业空间大、循环进尺快。",
+      "equip": "潜孔钻机/凿岩台车 + 装载机 + 20方自卸车 + 湿喷台车"
+    },
+    {
+      "key": "bench",
+      "name": "台阶法",
+      "rock": "Ⅳ 级围岩",
+      "cycle": "14.5 h",
+      "adv": "2.0 m",
+      "shot": "22 cm",
+      "month": "90 m/月",
+      "desc": "适用于Ⅳ级中风化变质灰岩段，上台阶先行开挖支护，下台阶跟进，兼顾进度与稳定。",
+      "equip": "挖掘机 + 装载机 + 20方自卸车 + 拱架台车 + 湿喷台车"
+    },
+    {
+      "key": "core",
+      "name": "环形开挖预留核心土法",
+      "rock": "Ⅴ 级围岩",
+      "cycle": "15.5 h",
+      "adv": "0.8 m",
+      "shot": "26 cm",
+      "month": "45 m/月",
+      "desc": "适用于Ⅴ级深埋大变形段，核心土支护掌子面防坍塌，配合掌子面加固(3h)。",
+      "equip": "潜孔钻机 + 超前地质钻机 + 75型挖机 + 湿喷台车 + 拱架台车"
+    }
+  ],
+  "supportByGrade": {},
+  "rules": [
+    {
+      "code": "test_method_full",
+      "version": 1,
+      "name": "测试全断面条件",
+      "kind": "method",
+      "methodKey": "full",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "in",
+            "values": [
+              "I",
+              "II",
+              "III"
+            ]
+          }
+        ],
+        "excludeAny": [
+          {
+            "field": "water",
+            "op": "eq",
+            "value": "涌水"
+          }
+        ]
+      },
+      "reason": "测试 I—III 级条件，不是工程选型依据",
+      "templateCode": null,
+      "templateVersion": null,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_method_iv",
+      "version": 1,
+      "name": "测试 IV 工法",
+      "kind": "method",
+      "methodKey": "bench",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "IV"
+          }
+        ],
+        "excludeAny": [
+          {
+            "field": "water",
+            "op": "eq",
+            "value": "涌水"
+          }
+        ]
+      },
+      "reason": "按测试围岩条件匹配；非工程规则",
+      "templateCode": null,
+      "templateVersion": null,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_method_v",
+      "version": 1,
+      "name": "测试 V 工法",
+      "kind": "method",
+      "methodKey": "core",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "V"
+          }
+        ],
+        "excludeAny": [
+          {
+            "field": "water",
+            "op": "eq",
+            "value": "涌水"
+          }
+        ]
+      },
+      "reason": "按测试围岩条件匹配；非工程规则",
+      "templateCode": null,
+      "templateVersion": null,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_method_tie",
+      "version": 1,
+      "name": "测试深埋并列",
+      "kind": "method",
+      "methodKey": "core",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "IV"
+          },
+          {
+            "field": "depth",
+            "op": "range",
+            "min": 800,
+            "minInclusive": true,
+            "maxInclusive": false
+          }
+        ],
+        "excludeAny": []
+      },
+      "reason": "用于验证同优先级并列，不代表工程适用性",
+      "templateCode": null,
+      "templateVersion": null,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "rule_test_iv_main",
+      "version": 1,
+      "name": "模板映射 test_iv_main",
+      "kind": "support",
+      "methodKey": "bench",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "IV"
+          },
+          {
+            "field": "section",
+            "op": "eq",
+            "value": "主洞标准断面"
+          }
+        ],
+        "excludeAny": []
+      },
+      "reason": "测试完整模板引用",
+      "templateCode": "test_iv_main",
+      "templateVersion": 1,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "rule_test_v_main",
+      "version": 1,
+      "name": "模板映射 test_v_main",
+      "kind": "support",
+      "methodKey": "core",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "V"
+          },
+          {
+            "field": "section",
+            "op": "eq",
+            "value": "主洞标准断面"
+          }
+        ],
+        "excludeAny": []
+      },
+      "reason": "测试完整模板引用",
+      "templateCode": "test_v_main",
+      "templateVersion": 1,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "rule_test_iv_pilot",
+      "version": 1,
+      "name": "模板映射 test_iv_pilot",
+      "kind": "support",
+      "methodKey": "bench",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "IV"
+          },
+          {
+            "field": "section",
+            "op": "eq",
+            "value": "平导标准断面"
+          }
+        ],
+        "excludeAny": []
+      },
+      "reason": "测试完整模板引用",
+      "templateCode": "test_iv_pilot",
+      "templateVersion": 1,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "rule_test_iv_deep",
+      "version": 1,
+      "name": "模板映射 test_iv_deep",
+      "kind": "support",
+      "methodKey": "core",
+      "priority": 100,
+      "enabled": true,
+      "conditions": {
+        "all": [
+          {
+            "field": "grade",
+            "op": "eq",
+            "value": "IV"
+          },
+          {
+            "field": "section",
+            "op": "eq",
+            "value": "主洞紧急停车带"
+          }
+        ],
+        "excludeAny": []
+      },
+      "reason": "测试完整模板引用",
+      "templateCode": "test_iv_deep",
+      "templateVersion": 1,
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    }
+  ],
+  "templates": [
+    {
+      "code": "test_iv_main",
+      "version": 1,
+      "name": "临时测试 IV 支护 1",
+      "enabled": true,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I16",
+          "spacingCm": 80
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 22
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_v_main",
+      "version": 1,
+      "name": "临时测试 V 支护 1",
+      "enabled": true,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I20",
+          "spacingCm": 60
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 26
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3.5,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_iv_pilot",
+      "version": 1,
+      "name": "临时测试 IV 支护 2",
+      "enabled": true,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I16",
+          "spacingCm": 80
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 22
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_iv_deep",
+      "version": 1,
+      "name": "临时测试 IV 支护 3",
+      "enabled": true,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I16",
+          "spacingCm": 80
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 22
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_v_alternative",
+      "version": 1,
+      "name": "临时测试 V 支护 2",
+      "enabled": true,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I20",
+          "spacingCm": 60
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 26
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3.5,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "code": "test_disabled",
+      "version": 1,
+      "name": "临时测试 IV 支护 4",
+      "enabled": false,
+      "parameters": {
+        "steel": {
+          "model": "TEST-I16",
+          "spacingCm": 80
+        },
+        "shot": {
+          "strength": "TEST-C25",
+          "thicknessCm": 22
+        },
+        "anchor": {
+          "type": "测试系统锚杆",
+          "diameterMm": 22,
+          "lengthM": 3,
+          "longitudinalSpacingCm": 120,
+          "circumferentialSpacingCm": 80
+        },
+        "advance": {
+          "type": "测试超前锚杆",
+          "diameterMm": 22,
+          "lengthM": 4.5,
+          "ringSpacingCm": 40,
+          "scope": "测试拱部布置范围"
+        }
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    }
+  ],
+  "observations": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "workface": "test_face_a",
+      "mileage": "K3601+200",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 620,
+        "section": "主洞标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "workface": "test_face_a",
+      "mileage": "K3600+450",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "hardness": "较软",
+        "integrity": "破碎",
+        "thickness": "薄层",
+        "water": "滴水",
+        "grade": "V",
+        "depth": 897.8,
+        "section": "主洞标准断面",
+        "density": 2480,
+        "sharePrimary": 0.7,
+        "shareSecondary": 0.3,
+        "friction": 25,
+        "elastic": 1.65,
+        "cohesion": 140,
+        "poisson": 0.32,
+        "stressV": 31.2,
+        "stressH": 18.6
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000003",
+      "workface": "test_face_b",
+      "mileage": "K3601+200",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 620,
+        "section": "平导标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000004",
+      "workface": "test_face_a",
+      "mileage": "K3601+900",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 604,
+        "section": "主洞标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000005",
+      "workface": "test_face_a",
+      "mileage": "K3601+900",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 605,
+        "section": "主洞标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000006",
+      "workface": "test_face_b",
+      "mileage": "K3600+450",
+      "observedAt": "2026-11-01T00:00:00Z",
+      "params": {
+        "grade": "IV",
+        "depth": 620
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000007",
+      "workface": "test_face_a",
+      "mileage": "K3601+200",
+      "observedAt": "2026-10-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 500,
+        "section": "主洞标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000008",
+      "workface": "test_face_a",
+      "mileage": "K3601+200",
+      "observedAt": "2099-01-01T00:00:00Z",
+      "params": {
+        "hardness": "硬",
+        "integrity": "较破碎",
+        "thickness": "厚层",
+        "water": "潮湿",
+        "grade": "IV",
+        "depth": 999,
+        "section": "主洞标准断面",
+        "density": 2550,
+        "sharePrimary": 0.55,
+        "shareSecondary": 0.3,
+        "friction": 32,
+        "elastic": 2.85,
+        "cohesion": 260,
+        "poisson": 0.28,
+        "stressV": 21.5,
+        "stressH": 13.2
+      },
+      "source": "simulation",
+      "testBatchId": "d1_synthetic_v1"
+    }
+  ],
+  "dataSource": "local-test",
+  "meta": {
+    "workfaces": [
+      {
+        "value": "test_face_a",
+        "label": "临时测试主洞工作面",
+        "grade": "IV"
+      },
+      {
+        "value": "test_face_b",
+        "label": "临时测试平导工作面",
+        "grade": "IV"
+      }
+    ],
+    "mileages": [
+      {
+        "value": "K3601+200",
+        "label": "K3601+200",
+        "mile": "K3601+200"
+      },
+      {
+        "value": "K3600+450",
+        "label": "K3600+450",
+        "mile": "K3600+450"
+      },
+      {
+        "value": "K3601+900",
+        "label": "K3601+900",
+        "mile": "K3601+900"
+      },
+      {
+        "value": "K3599+050",
+        "label": "K3599+050",
+        "mile": "K3599+050"
+      }
+    ]
+  }
+}

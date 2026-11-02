@@ -11,7 +11,7 @@ from tests.common import PARAMS, save_request
 
 class DecisionApiTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.client = TestClient(create_app(Settings()), raise_server_exceptions=False)
+        self.client = TestClient(create_app(Settings(algorithm_factory='app.algorithms.reference:create_algorithm')), raise_server_exceptions=False)
         self.client.__enter__()
         self.addCleanup(self.client.__exit__, None, None, None)
 
@@ -103,7 +103,7 @@ class DecisionApiTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/decision/build-snapshot', json=request).status_code, 409)
 
     def test_optional_service_authentication(self) -> None:
-        with TestClient(create_app(replace(Settings(),api_key='local-test-key'))) as client:
+        with TestClient(create_app(replace(Settings(algorithm_factory='app.algorithms.reference:create_algorithm'),api_key='local-test-key'))) as client:
             self.assertEqual(client.get('/api/decision/meta').status_code, 401)
             self.assertEqual(client.get('/api/decision/meta',headers={'X-Decision-Key':'local-test-key'}).status_code, 200)
 

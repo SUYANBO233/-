@@ -167,3 +167,6 @@ Desktop.ini
 # Python backend caches (uses the existing Python interpreter)
 backend/.venv/
 backend/.pytest_cache/
+.local/
+test-results/
+playwright-report/

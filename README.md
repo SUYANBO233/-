@@ -9,12 +9,14 @@
 ```bash
 pnpm install
 pnpm backend:install
-pnpm dev:all
+pnpm dev:d1
 ```
 
 打开 [http://localhost:5000](http://localhost:5000) 查看系统。Python 接口文档位于 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。后端直接使用环境已有的 `python3`，不创建虚拟环境。
 
-也可以分别执行 `pnpm backend:dev` 和 `pnpm dev`。当前参考规则支持 IV、V 级围岩的支护设计，并明确标记为未经工程标定的演示实现。算法替换和远程服务配置见 [Python 后端说明](docs/backend.md)。
+`pnpm dev:d1` 显式初始化 `.local/decision-test` 中隔离的 PGlite 数据库，使用带批次标记的合成规则、完整支护模板和采集场景；不连接 Supabase。支持按位置同步、规则命中理由、并列选择、支护微调、资料启停和版本维护。没有力学模型与判据时显示“无法评价”，报告为待复核配置。
+
+接入自己的数据库时执行迁移和初始化，再运行 `pnpm dev:all`。此模式不会自动使用测试资料；需要维护可执行规则、完整模板和采集资料。D1 运行与测试说明见 [第一阶段说明](docs/d1.md)，算法替换见 [Python 后端说明](docs/backend.md)。
 
 经验数据库和方案报告与决策台账在未配置 Supabase 时使用内置演示数据，可直接浏览。要启用数据管理和方案保存，请参照 [数据库部署说明](docs/database.md) 配置 `.env.local`，执行 `pnpm db:migrate` 和 `pnpm db:seed` 后重启。读取接口不会自动初始化数据库。
 

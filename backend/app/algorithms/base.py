@@ -4,7 +4,7 @@ from typing import Protocol, runtime_checkable
 from app.models import (
     AlgorithmInfo, ArchMechanism, DesignRequest, GenerateRequest, GeoParams,
     InferRequest, MethodMatch, RecheckRequest, SafetyAssessment, SchemeReport,
-    SupportComponent, SupportValues,
+    SupportComponent, SupportValues, Catalog, SupportTemplate,
 )
 
 
@@ -23,6 +23,15 @@ class DecisionAlgorithm(Protocol):
 
     def assess(self, request: RecheckRequest) -> SafetyAssessment: ...
 
-    def mechanism(self, params: GeoParams) -> ArchMechanism: ...
+    def mechanism(self, params: GeoParams) -> ArchMechanism | None: ...
 
     def report(self, request: GenerateRequest) -> SchemeReport: ...
+
+
+@runtime_checkable
+class TemplateAlgorithm(DecisionAlgorithm, Protocol):
+    catalog: Catalog
+
+    def templates_for(self, request: DesignRequest) -> list[SupportTemplate]: ...
+
+    def chosen_template(self, request: DesignRequest) -> SupportTemplate: ...

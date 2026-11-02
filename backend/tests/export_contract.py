@@ -1,6 +1,9 @@
 """Emit response fixtures over ASGI, without opening a network port."""
 import json
 import sys
+from pathlib import Path
+from app.models import Catalog
+from app.repositories.catalog import FrozenCatalogRepository
 
 from fastapi.testclient import TestClient
 
@@ -9,8 +12,13 @@ from app.main import create_app
 from tests.common import PARAMS, save_request
 
 
-def contract_cases() -> dict:
-    with TestClient(create_app(Settings())) as client:
+def contract_cases(d1: bool = False) -> dict:
+    if d1:
+        catalog = Catalog.model_validate_json((Path(__file__).resolve().parents[2]/'tests/fixtures/d1-catalog.json').read_text())
+        application = create_app(Settings(),repository=FrozenCatalogRepository(catalog))
+    else:
+        application = create_app(Settings(algorithm_factory='app.algorithms.reference:create_algorithm'))
+    with TestClient(application) as client:
         def post(operation: str, body: dict) -> dict:
             response = client.post(f'/api/decision/{operation}',json=body)
             response.raise_for_status()
@@ -24,8 +32,16 @@ def contract_cases() -> dict:
         save = save_request()
         save['requestKey'] = '9348484b-2e51-44c6-a27b-5b6fe22cfe53'
         save['algorithm'] = meta['algorithm']
+        if d1:
+            save['workface'] = 'test_face_a'
+            save['observationId'] = '10000000-0000-4000-8000-000000000001'
+            save['revisions'][0]['template'] = {'code':'test_iv_main','version':1}
         snapshot = post('build-snapshot',save)
-        return {'meta':meta,'inference':inference,'design':design,'safety':safety,'report':report,'save':save,'snapshot':snapshot}
+        cases = {'meta':meta,'inference':inference,'design':design,'safety':safety,'report':report,'save':save,'snapshot':snapshot}
+        if d1:
+            cases['synchronize'] = post('synchronize',{'workface':'test_face_a','mileage':'K3601+200'})
+            cases['options'] = post('support-options',{'params':PARAMS,'methodKey':'bench'})
+        return cases
 
 
 if __name__ == '__main__':
@@ -41,5 +57,5 @@ if __name__ == '__main__':
         request['algorithm'] = algorithm.info.model_dump(by_alias=True)
         data = DecisionService(algorithm, repository).snapshot(SaveDecisionRequest.model_validate(request)).model_dump(by_alias=True)
     else:
-        data = contract_cases()
+        data = contract_cases(d1='--d1' in sys.argv)
     print(json.dumps(data,ensure_ascii=False))

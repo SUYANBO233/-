@@ -1,3 +1,4 @@
+import { getLocalTestDatabase,isLocalTestCatalog } from './catalog-store';
 import type { SaveDecisionRequest, SaveDecisionResult } from '@/lib/types';
 import { buildDecisionPayload } from '@/server/decision-payload';
 import { DecisionBackendError } from '@/server/decision-backend';
@@ -9,6 +10,19 @@ export class DecisionSaveError extends Error {
 
 /** 由配置的 Python 算法生成可信快照，再调用已有数据库事务。 */
 export async function saveDecision(input: SaveDecisionRequest): Promise<SaveDecisionResult> {
+  if (isLocalTestCatalog()) {
+    const payload=await buildDecisionPayload(input).catch((error:unknown) => {
+      if (error instanceof DecisionBackendError) throw new DecisionSaveError(error.message,error.status);
+      throw error;
+    });
+    try {
+      const result=await (await getLocalTestDatabase()).query<{ result:SaveDecisionResult }>('SELECT save_decision($1::jsonb) AS result',[JSON.stringify(payload)]);
+      return result.rows[0].result;
+    } catch (error:unknown) {
+      const code=error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+      throw new DecisionSaveError(code === '23505' ? '相同请求键已用于不同内容':'本地测试保存失败，事务已回滚',code === '23505' ? 409:503);
+    }
+  }
   if (!hasSupabaseCredentials() || !getSupabaseServiceRoleKey()) {
     throw new DecisionSaveError('数据库尚未配置，方案未保存。请配置数据库并执行迁移和初始化。', 503);
   }

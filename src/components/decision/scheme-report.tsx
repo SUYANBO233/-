@@ -17,13 +17,13 @@ export function SchemeReportView({ scheme, onSave, saving = false, saved = false
       <div className="card">
         <div className="rpt-head">
           <div>
-            <div className="text-[17px] font-bold text-ink">沙益1号隧道机械化施工智能配置报告</div>
+            <div className="text-[17px] font-bold text-ink">钻爆法隧道施工配置报告</div>
             <div className="mt-0.5 text-[11.5px] text-ink-3">
               编号: <b className="text-ink">{scheme.no}</b> · 时间: {scheme.time}
             </div>
             {scheme.algorithm && <div className="mt-1 text-xs text-ink-3">
               算法：{scheme.algorithm.id} · {scheme.algorithm.version}
-              {scheme.algorithm.reference && <span className="ml-2 text-warn">参考规则演示 · 未经工程标定</span>}
+              {scheme.algorithm.reference && <span className="ml-2 text-warn">规则/测试资料 · 待工程复核</span>}
             </div>}
           </div>
           <div className="text-right text-[12px] text-ink-3">

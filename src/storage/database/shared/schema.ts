@@ -79,9 +79,11 @@ export const supportScheme = pgTable('support_scheme', {
   conc: varchar('conc', { length: 120 }).notNull(), thick: varchar('thick', { length: 40 }).notNull(),
   mode: varchar('mode', { length: 60 }).notNull(), advRate: varchar('adv_rate', { length: 40 }).notNull(),
   benchLen: varchar('bench_len', { length: 40 }).notNull(), isCustom: boolean('is_custom').default(true).notNull(),
+  code: text('code'), enabled: boolean('enabled').notNull().default(false), testBatchId: text('test_batch_id'),
   version: integer('version').notNull().default(1), parameters: jsonb('parameters').notNull().default({}),
   ...provenance(), createdAt: createdAt(),
-}, (t) => [index('support_scheme_rock_idx').on(t.rock), uniqueIndex('support_scheme_seed_key_uidx').on(t.seedKey)]);
+}, (t) => [index('support_scheme_rock_idx').on(t.rock), uniqueIndex('support_scheme_seed_key_uidx').on(t.seedKey),
+  uniqueIndex('support_scheme_code_version_uidx').on(t.code,t.version),uniqueIndex('support_scheme_enabled_code_uidx').on(t.code).where(sql`${t.enabled}`)]);
 
 export const knowledgeMapping = pgTable('knowledge_mapping', {
   id: serial('id').primaryKey(), no: integer('no').notNull().default(sql`nextval('public.knowledge_mapping_no_seq')`),
@@ -115,7 +117,7 @@ export const geoObservation = pgTable('geo_observation', {
   id: uuid('id').primaryKey().defaultRandom(), workfaceId: integer('workface_id').notNull().references(() => workface.id),
   seedKey: text('seed_key').unique(), chainageM: numeric('chainage_m', { precision: 14, scale: 3 }).notNull(),
   observedAt: timestamp('observed_at', { withTimezone: true }).notNull(), source: text('source').notNull(),
-  rockGrade: text('rock_grade').notNull(), params: jsonb('params').$type<GeoParams>().notNull(), createdAt: createdAt(),
+  testBatchId: text('test_batch_id'), rockGrade: text('rock_grade'), params: jsonb('params').$type<Partial<GeoParams>>().notNull(), createdAt: createdAt(),
 }, (t) => [
   index('geo_observation_workface_time_idx').on(t.workfaceId, t.observedAt),
   check('geo_observation_rock_grade_check', sql`${t.rockGrade} in ('I','II','III','IV','V','VI')`),
@@ -144,6 +146,7 @@ export const decisionRevision = pgTable('decision_revision', {
   supportSchemeId: integer('support_scheme_id').references(() => supportScheme.id),
   methodSnapshot: jsonb('method_snapshot').notNull(), candidatesSnapshot: jsonb('candidates_snapshot').$type<MethodMatch[]>().notNull(),
   supportSnapshot: jsonb('support_snapshot').$type<SupportComponent[]>().notNull(),
+  templateSnapshot: jsonb('template_snapshot'), rulesSnapshot: jsonb('rules_snapshot'),
   safetySnapshot: jsonb('safety_snapshot').$type<SafetyAssessment>().notNull(), reason: text('reason').notNull(), createdAt: createdAt(),
 }, (t) => [uniqueIndex('decision_revision_decision_run_id_revision_key').on(t.decisionRunId, t.revision), check('decision_revision_revision_check', sql`${t.revision} > 0`)]);
 
@@ -159,7 +162,7 @@ export const schemeHistory = pgTable('scheme_history', {
   face: varchar('face', { length: 200 }).notNull(), startMile: varchar('start_mile', { length: 40 }).notNull(),
   endMile: varchar('end_mile', { length: 40 }).notNull(), advance: varchar('advance', { length: 20 }).notNull(),
   rock: varchar('rock', { length: 20 }).notNull(), method: varchar('method', { length: 60 }).notNull(),
-  type: varchar('type', { length: 20 }).notNull(), score: numeric('score', { precision: 6, scale: 2 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull(), score: numeric('score', { precision: 6, scale: 2 }), evaluationStatus: text('evaluation_status'),
   detail: text('detail').notNull(), custom: boolean('custom').default(false).notNull(),
   advanceM: numeric('advance_m', { precision: 12, scale: 3 }), cycleDurationMinutes: integer('cycle_duration_minutes'),
   workfaceId: integer('workface_id').references(() => workface.id),
@@ -170,3 +173,12 @@ export const schemeHistory = pgTable('scheme_history', {
   uniqueIndex('scheme_history_seed_key_uidx').on(t.seedKey), uniqueIndex('scheme_history_report_uidx').on(t.schemeReportId),
   index('scheme_history_face_time_idx').on(t.face, t.time), index('scheme_history_workface_time_idx').on(t.workfaceId, t.time),
 ]);
+
+export const decisionRule = pgTable('decision_rule', {
+  id: serial('id').primaryKey(), code: text('code').notNull(), version: integer('version').notNull(),
+  name: text('name').notNull(), kind: text('kind').notNull(), methodKey: text('method_key').notNull().references(() => constructionMethod.code),
+  priority: integer('priority').notNull(), enabled: boolean('enabled').notNull().default(false),
+  conditions: jsonb('conditions').notNull(), reason: text('reason').notNull(),
+  templateCode: text('template_code'), templateVersion: integer('template_version'),
+  source: text('source').notNull(), testBatchId: text('test_batch_id'), createdAt: createdAt(),
+}, (t) => [uniqueIndex('decision_rule_code_version_uidx').on(t.code,t.version)]);

@@ -59,7 +59,7 @@ export default function DecisionPage() {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <TopBar />
-      <main className="mx-auto max-w-[1600px] px-6 pb-16 pt-5">
+      <main className="mx-auto max-w-[1600px] px-6 pb-16 pt-[76px]">
         {/* 页面头部 */}
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -82,7 +82,7 @@ export default function DecisionPage() {
         </div>}
         <div className="mb-3 text-xs text-ink-3">
           {d.algorithm || d.meta.algorithm ? `${(d.algorithm ?? d.meta.algorithm)?.id} · ${(d.algorithm ?? d.meta.algorithm)?.version}` : '正在连接决策服务…'}
-          {(d.algorithm ?? d.meta.algorithm)?.reference && <span className="ml-2 text-warn">参考规则演示 · 未经工程标定</span>}
+          {(d.algorithm ?? d.meta.algorithm)?.reference && <span className="ml-2 text-warn">规则/测试资料 · 未接入力学评价</span>}
           {!d.metaReady && <button type="button" className="ml-3 underline" onClick={d.retryMeta}>重新连接后端</button>}
         </div>
 
@@ -98,6 +98,9 @@ export default function DecisionPage() {
 
         <div ref={workbenchRef} className="scroll-mt-20">
           <DecisionWorkbench
+            syncing={d.syncing}
+            onSynchronize={() => { void d.synchronize(); }}
+            origin={d.origin}
             meta={d.meta}
             mileage={d.mileage}
             ready={d.metaReady}
@@ -123,13 +126,18 @@ export default function DecisionPage() {
           <div ref={methodRef} className="scroll-mt-20">
             <MethodSelect
               methods={d.methods}
+              manualReason={d.manualReason}
+              onManualReason={d.setManualReason}
+              templateOptions={d.templateOptions}
+              template={d.template}
+              onTemplate={d.selectTemplate}
               selectedKey={d.selectedMethodKey}
               onSelect={d.selectMethod}
               onConfirm={async () => {
                 await d.confirmMethod();
                 scrollTo(supportRef.current);
               }}
-              onReset={d.reset}
+              onReset={() => { void d.runInfer(); }}
             />
           </div>
         )}
@@ -137,7 +145,7 @@ export default function DecisionPage() {
         {d.step >= 3 && (
           <div ref={supportRef} className="scroll-mt-20">
             <SupportDesign
-              mechanism={d.mechanism ?? { height: "—", release: "—", closeTime: "—" }}
+              mechanism={d.mechanism}
               checking={d.checking}
               reporting={d.reporting}
               reference={d.algorithm?.reference ?? true}

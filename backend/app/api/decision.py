@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.models import (
     DecisionMeta, DecisionPayload, DesignRequest, DesignResponse, GenerateRequest,
     InferRequest, InferResponse, RecheckRequest, SafetyAssessment, SaveDecisionRequest, SchemeReport,
+    SynchronizeRequest, SynchronizeResponse, SupportOptionsResponse, RulePreviewRequest,
 )
 from app.services.decision import DecisionService
 
@@ -14,7 +15,7 @@ def get_service(request: Request) -> DecisionService:
     expected: str = request.app.state.settings.api_key
     if expected and not secrets.compare_digest(request.headers.get('X-Decision-Key',''), expected):
         raise HTTPException(status_code=401, detail='算法服务认证失败')
-    service: DecisionService = request.app.state.decision_service
+    service: DecisionService = request.app.state.make_decision_service()
     return service
 
 
@@ -22,9 +23,25 @@ Service = Annotated[DecisionService, Depends(get_service)]
 router = APIRouter(prefix='/api/decision', tags=['decision'])
 
 
+@router.post('/preview-rule')
+def preview_rule(body: RulePreviewRequest,service: Service) -> dict[str,str]:
+    from app.algorithms.rule_matching import match_rule
+    return {'status':match_rule(body.rule,body.params),'reason':body.rule.reason,'version':service.algorithm.info.version}
+
+
 @router.get('/meta', response_model=DecisionMeta)
 def meta(service: Service) -> DecisionMeta:
     return service.meta()
+
+
+@router.post('/synchronize', response_model=SynchronizeResponse)
+def synchronize(body: SynchronizeRequest,service: Service) -> SynchronizeResponse:
+    return service.synchronize(body)
+
+
+@router.post('/support-options',response_model=SupportOptionsResponse)
+def support_options(body: DesignRequest,service: Service) -> SupportOptionsResponse:
+    return service.support_options(body)
 
 
 @router.post('/infer-methods', response_model=InferResponse)

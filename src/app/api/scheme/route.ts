@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import {
   createSchemeHistory,
   deleteSchemeHistory,
+  clearLocalTestHistory,
   listSchemeHistory,
 } from "@/server/scheme";
 import type { HistoryRecord } from "@/lib/types";
+import { isLocalTestCatalog } from '@/server/catalog-store';
 
 /** GET /api/scheme —— 返回历史决策台账（工作面 + 记录列表） */
 export async function GET() {
@@ -37,8 +39,17 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const url = new URL(req.url);
+    if (url.searchParams.get('scope') === 'local-test') {
+      if (!isLocalTestCatalog()) return NextResponse.json({ message:'清空测试记录仅在 dev:d1 本地测试模式可用' },{ status:403 });
+      const body:unknown=await req.json().catch(() => null);
+      if (!body || typeof body !== 'object' || !('confirmation' in body) || body.confirmation !== '清空测试记录') {
+        return NextResponse.json({ message:'请输入清空测试记录以确认' },{ status:400 });
+      }
+      const count=await clearLocalTestHistory();
+      return NextResponse.json({ success:true,count });
+    }
     const id = Number(url.searchParams.get("id"));
-    if (!id) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: "缺少 id" }, { status: 400 });
     }
     await deleteSchemeHistory(id);

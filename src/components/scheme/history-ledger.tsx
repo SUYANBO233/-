@@ -4,9 +4,10 @@ import { Fragment, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { HistoryRecord, SchemeReport } from '@/lib/types';
 import { Field, Modal, Toast, useBriefToast } from '@/components/knowledge/modal';
-import { createSchemeHistory, fetchSchemeHistory, fetchSchemeReport, importSchemeHistory } from '@/lib/api';
+import { clearLocalTestHistory, deleteSchemeHistory, createSchemeHistory, fetchSchemeHistory, fetchSchemeReport, importSchemeHistory } from '@/lib/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SchemeReportView } from '@/components/decision/scheme-report';
 
 interface HistoryLedgerProps {
@@ -14,6 +15,8 @@ interface HistoryLedgerProps {
   subtitle: string;
   faces: string[];
   records: HistoryRecord[];
+  canDelete?: boolean;
+  localTest?: boolean;
 }
 
 /** 取日期部分（YYYY-MM-DD）用于范围比较 */
@@ -42,11 +45,37 @@ const METHOD_OPTS = ['台阶法', '预留核心土法', '全断面法', '双侧�
  * 历史决策台账：起止日期 + 工作面筛选，决策记录表，点击 [+] 展开循环进尺与总时长明细；
  * 支持新增记录与 JSON 批量导入（数据落 Supabase）。
  */
-export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
+export function HistoryLedger({ faces, records: seed, canDelete=false, localTest=false }: HistoryLedgerProps) {
   const { msg, show } = useBriefToast();
   const [rows, setRows] = useState<HistoryRecord[]>(seed);
   const [report, setReport] = useState<SchemeReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+
+  const [deleting,setDeleting]=useState<HistoryRecord | 'all' | null>(null);
+  const [confirmation,setConfirmation]=useState('');
+  const [deleteBusy,setDeleteBusy]=useState(false);
+  const [deleteError,setDeleteError]=useState('');
+  function askDelete(target:HistoryRecord | 'all') {
+    setDeleting(target);setConfirmation('');setDeleteError('');
+  }
+  async function confirmDelete() {
+    if (!deleting || deleteBusy) return;
+    setDeleteBusy(true);setDeleteError('');
+    try {
+      if (deleting === 'all') {
+        const count=await clearLocalTestHistory(confirmation);
+        const fresh=await fetchSchemeHistory();setRows(fresh.records);
+        show(`已清空 ${count} 条测试记录`);
+      } else {
+        await deleteSchemeHistory(deleting.id);
+        setRows((prev) => prev.filter((row) => row.id !== deleting.id));
+        show('已删除记录及无其他记录引用的关联报告');
+      }
+      setReport(null);setExpanded(new Set());setDeleting(null);
+    } catch (error:unknown) {
+      setDeleteError(error instanceof Error ? error.message : '删除失败，请重试');
+    } finally { setDeleteBusy(false); }
+  }
 
   async function openReport(id: string) {
     setReportLoading(true);
@@ -163,6 +192,7 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
   return (
     <section>
       <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        {localTest && <Button variant="destructive" size="sm" disabled={rows.length === 0 || deleteBusy} onClick={() => askDelete('all')}>清空测试记录</Button>}
         <button className="btn btn-sm btn-ghost" onClick={() => setOpenImport(true)}>
           导入
         </button>
@@ -261,12 +291,13 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
                 <th className="whitespace-nowrap border-b border-line px-3 py-2.5 text-center font-semibold text-ink-2">
                   安全度
                 </th>
+                <th className="px-3 py-2.5 text-center text-ink-2">操作</th>
               </tr>
             </thead>
             <tbody>
               {list.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-ink-3">
+                  <td colSpan={11} className="px-3 py-8 text-center text-ink-3">
                     当前筛选条件下暂无决策记录
                   </td>
                 </tr>
@@ -325,12 +356,15 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
                           </b>
                         </td>
                         <td className="px-3 py-2.5 text-center align-middle">
-                          <b className="font-semibold text-ok tabular-nums">{h.score}</b>
+                          <b className={cn("font-semibold tabular-nums",h.score === null ? "text-warn":"text-ink-2")}>{h.score ?? '无法评价'}</b>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {canDelete ? <Button variant="ghost" size="sm" className="text-destructive" aria-label={`删除记录 ${h.id}`} disabled={deleteBusy} onClick={() => askDelete(h)}>删除</Button> : '—'}
                         </td>
                       </tr>
                       {open && (
                         <tr className="border-b border-line/40 bg-[rgba(45,212,191,0.04)]">
-                          <td colSpan={10} className="px-3 py-3 text-left align-top text-[12px] leading-[1.7] text-ink-2">
+                          <td colSpan={11} className="px-3 py-3 text-left align-top text-[12px] leading-[1.7] text-ink-2">
                             <b className="text-brand">【单次决策循环明细】</b> {h.detail}
                             {h.schemeReportId && (
                               <Button variant="outline" size="sm" className="ml-3" disabled={reportLoading} onClick={() => openReport(h.schemeReportId!)}>
@@ -348,6 +382,24 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
           </table>
         </div>
       </div>
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => { if (!open && !deleteBusy) setDeleting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{deleting === 'all' ? '清空本地测试记录' : '删除决策记录'}</DialogTitle>
+            <DialogDescription>
+              {deleting === 'all' ? '将删除本地测试库中的全部台账，不受当前筛选条件限制。' : deleting ? `将删除记录 ${deleting.id}（${deleting.face}，${deleting.startMile}）。` : ''}
+              关联报告与无人引用的决策快照一并删除，无法恢复。规则、模板和采集数据保留。
+            </DialogDescription>
+          </DialogHeader>
+          {deleting === 'all' && <label className="space-y-2 text-sm">请输入“清空测试记录”确认<Input aria-label="清空确认文字" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={deleteBusy} /></label>}
+          {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" disabled={deleteBusy} onClick={() => setDeleting(null)}>取消</Button>
+            <Button variant="destructive" disabled={deleteBusy || (deleting === 'all' && confirmation !== '清空测试记录')} onClick={() => void confirmDelete()}>{deleteBusy ? '正在删除…' : '确认删除'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={report !== null} onOpenChange={(open) => { if (!open) setReport(null); }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-5xl">
