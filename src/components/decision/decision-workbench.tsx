@@ -1,10 +1,12 @@
 'use client';
 
-import { DECISION_META } from '@/data/decision';
 import { cn } from '@/lib/utils';
-import type { DecisionMode, GeoParams, RockGrade } from '@/lib/types';
+import type { DecisionMeta, DecisionMode, GeoParams, RockGrade } from '@/lib/types';
 
 interface DecisionWorkbenchProps {
+  meta: DecisionMeta;
+  mileage: string;
+  ready: boolean;
   mode: DecisionMode;
   workface: string;
   params: GeoParams;
@@ -80,6 +82,7 @@ const SECTION_OPTIONS = [
 ];
 
 export function DecisionWorkbench({
+  meta, mileage, ready,
   mode,
   workface,
   params,
@@ -137,7 +140,7 @@ export function DecisionWorkbench({
             type="button"
             className="inline-flex items-center gap-1 rounded-[5px] bg-gradient-to-br from-[#1fb8a4] to-[#0e8f96] px-3 py-[3px] text-[12px] font-semibold text-white shadow-[0_3px_14px_rgba(45,212,191,.22)] transition-transform hover:-translate-y-px"
             onClick={() => {
-              const wf = DECISION_META.workfaces.find((w) => w.value === workface);
+              const wf = meta.workfaces.find((w) => w.value === workface);
               if (wf) onWorkfaceChange(wf.value, wf.grade);
             }}
           >
@@ -156,12 +159,12 @@ export function DecisionWorkbench({
           <select
             value={workface}
             onChange={(e) => {
-              const wf = DECISION_META.workfaces.find((w) => w.value === e.target.value);
+              const wf = meta.workfaces.find((w) => w.value === e.target.value);
               if (wf) onWorkfaceChange(wf.value, wf.grade);
             }}
             className="flex-1 cursor-pointer rounded border border-line bg-panel px-2.5 py-1.5 text-[12px] text-ink outline-none"
           >
-            {DECISION_META.workfaces.map((wf) => (
+            {meta.workfaces.map((wf) => (
               <option key={wf.value} value={wf.value}>
                 {wf.label}
               </option>
@@ -171,14 +174,14 @@ export function DecisionWorkbench({
         <div className="wf-field">
           <label>开挖里程桩号:</label>
           <select
-            defaultValue="m1"
+            value={meta.mileages.find((item) => item.mile === mileage)?.value ?? ""}
             onChange={(e) => {
-              const m = DECISION_META.mileages.find((x) => x.value === e.target.value);
+              const m = meta.mileages.find((x) => x.value === e.target.value);
               if (m) onMileageChange(m.mile);
             }}
             className="flex-1 cursor-pointer rounded border border-line bg-panel px-2.5 py-1.5 text-[12px] text-ink outline-none"
           >
-            {DECISION_META.mileages.map((m) => (
+            {meta.mileages.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
@@ -301,6 +304,7 @@ export function DecisionWorkbench({
         <button
           type="button"
           onClick={onRunInfer}
+          disabled={!ready}
           className="inline-flex items-center justify-center gap-1.5 rounded-[7px] bg-gradient-to-br from-[#1fb8a4] to-[#0e8f96] px-[22px] py-[9px] text-[13.5px] font-semibold text-white shadow-[0_3px_14px_rgba(45,212,191,.22)] transition-transform hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(45,212,191,.35)]"
         >
           启动智能推理与决策

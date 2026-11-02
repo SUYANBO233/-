@@ -56,10 +56,11 @@ export function MappingTable({ title, data }: MappingTableProps) {
     );
   }, [list, kw]);
 
-  async function deleteItem(code: string) {
+  async function deleteItem(id: number | undefined) {
+    if (id === undefined) return;
     try {
-      await deleteMapping(code);
-      setList((prev) => prev.filter((k) => k.code !== code));
+      await deleteMapping(id);
+      setList((prev) => prev.filter((k) => k.id !== id));
       show('已删除知识规则');
     } catch {
       show('删除失败，请重试');
@@ -154,7 +155,7 @@ export function MappingTable({ title, data }: MappingTableProps) {
       className: 'whitespace-nowrap',
       render: (row) =>
         row.custom ? (
-          <button className="btn btn-sm btn-danger" onClick={() => deleteItem(row.code)}>
+          <button className="btn btn-sm btn-danger" disabled={row.id === undefined} onClick={() => deleteItem(row.id)}>
             删除
           </button>
         ) : (
@@ -192,7 +193,7 @@ export function MappingTable({ title, data }: MappingTableProps) {
       <DataTable<KnowledgeMapping>
         columns={columns}
         data={filtered}
-        rowKey={(r) => r.code}
+        rowKey={(r) => r.id ?? r.code}
         emptyText="暂无知识规则"
       />
 

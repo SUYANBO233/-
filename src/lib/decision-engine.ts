@@ -111,14 +111,14 @@ export function assessSafety(
   score = clamp(score, 40, 99);
 
   const tag =
-    score > 75 ? `安全 (${score})` : score >= 60 ? `注意 (${score})` : `危险 (${score})`;
+    score > 75 ? `参考评分较高 (${score})` : score >= 60 ? `参考评分一般 (${score})` : `参考评分较低 (${score})`;
 
   const reason =
     score > 75
-      ? '初期支护受力匹配良好，工字钢拱架与喷层联合承载刚度充足，锁脚锚管控制拱脚下沉，成拱稳定性在规范安全区间内。'
+      ? '演示评分处于模板参考区间；未计算实际荷载、承载力或规范安全系数，不能据此认定结构安全。'
       : score >= 60
-        ? '部分支护构件安全裕度收窄，建议加密钢架或增加喷层/锚杆长度后重新校核，确保成拱稳定。'
-        : '当前支护参数安全度不足，存在失稳风险，请立即加强支护设计（加密钢架、增厚喷层、加长锚杆）后复核。';
+        ? '演示评分低于模板基准，需要使用真实模型重新校核；此处不构成工程安全结论。'
+        : '演示评分较低，需要使用真实模型重新校核；此结果不代表实际结构安全结论。';
 
   // 分项雷达值，随综合系数等比浮动并限制在 0~100
   const baseRadar = isV
@@ -160,8 +160,6 @@ export function applySupportValue(
   return { ...component, valNum: value, layout };
 }
 
-let schemeSeq = 4;
-
 /** 补零 */
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
@@ -186,7 +184,7 @@ export function generateScheme(
 ): SchemeReport {
   const method = CONSTRUCTION_METHODS.find((m) => m.key === methodKey);
   const d = new Date();
-  const no = `SY1-SC-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${++schemeSeq}`;
+  const no = `预览-${crypto.randomUUID()}`;
   const time = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
   const byKey = (k: string): SupportComponent | undefined =>
@@ -200,7 +198,7 @@ export function generateScheme(
   const rows: SchemeRow[] = [
     {
       process: '开挖工法',
-      spec: `<b>${method?.name ?? ''}</b>`,
+      spec: method?.name ?? '',
       quantity: `单循环进尺 ${method?.adv ?? ''}`,
       basis: `单循环总耗时 ${method?.cycle ?? ''} · 预期月进尺 ${method?.month ?? ''}`,
     },

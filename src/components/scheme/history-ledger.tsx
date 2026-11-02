@@ -2,9 +2,12 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import type { HistoryRecord } from '@/lib/types';
+import type { HistoryRecord, SchemeReport } from '@/lib/types';
 import { Field, Modal, Toast, useBriefToast } from '@/components/knowledge/modal';
-import { createSchemeHistory, fetchSchemeHistory, importSchemeHistory } from '@/lib/api';
+import { createSchemeHistory, fetchSchemeHistory, fetchSchemeReport, importSchemeHistory } from '@/lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { SchemeReportView } from '@/components/decision/scheme-report';
 
 interface HistoryLedgerProps {
   title: string;
@@ -19,7 +22,7 @@ function datePart(time: string): string {
 }
 
 function RockTag({ rock }: { rock: string }) {
-  const isFour = rock.includes('Ⅳ');
+  const isFour = rock.includes('Ⅳ') || rock.startsWith('IV');
   return (
     <span
       className={cn(
@@ -42,8 +45,17 @@ const METHOD_OPTS = ['台阶法', '预留核心土法', '全断面法', '双侧�
 export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
   const { msg, show } = useBriefToast();
   const [rows, setRows] = useState<HistoryRecord[]>(seed);
-  const [start, setStart] = useState('2026-06-01');
-  const [end, setEnd] = useState('2026-07-31');
+  const [report, setReport] = useState<SchemeReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  async function openReport(id: string) {
+    setReportLoading(true);
+    try { setReport(await fetchSchemeReport(id)); }
+    catch (error: unknown) { show(error instanceof Error ? error.message : '报告读取失败'); }
+    finally { setReportLoading(false); }
+  }
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
   const faceOptions = ['全部工作面', ...faces.filter((f) => f && f !== '全部工作面')];
   const [face, setFace] = useState(faceOptions[0]);
   // 已应用的筛选条件（点击「查询」后才生效）
@@ -84,8 +96,8 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
   }
 
   function resetFilter() {
-    const s = '2026-06-01';
-    const e = '2026-07-31';
+    const s = '';
+    const e = '';
     const f = faceOptions[0];
     setStart(s);
     setEnd(e);
@@ -303,6 +315,8 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
                         <td className="px-3 py-2.5 text-center align-middle">
                           <b className="font-semibold text-ink">
                             {h.type}
+                            {h.source === 'simulation' && <span className="ml-1 text-[10px] text-warn">模拟方案</span>}
+                            {h.source === 'seed' && <span className="ml-1 text-[10px] text-ink-3">演示</span>}
                             {h.custom && (
                               <span className="tag tag-teal" style={{ marginLeft: 4 }}>
                                 新增
@@ -318,6 +332,11 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
                         <tr className="border-b border-line/40 bg-[rgba(45,212,191,0.04)]">
                           <td colSpan={10} className="px-3 py-3 text-left align-top text-[12px] leading-[1.7] text-ink-2">
                             <b className="text-brand">【单次决策循环明细】</b> {h.detail}
+                            {h.schemeReportId && (
+                              <Button variant="outline" size="sm" className="ml-3" disabled={reportLoading} onClick={() => openReport(h.schemeReportId!)}>
+                                {reportLoading ? '正在读取…' : '查看保存的方案报告'}
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -329,6 +348,16 @@ export function HistoryLedger({ faces, records: seed }: HistoryLedgerProps) {
           </table>
         </div>
       </div>
+
+      <Dialog open={report !== null} onOpenChange={(open) => { if (!open) setReport(null); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>已保存的方案报告</DialogTitle>
+            <DialogDescription>显示保存时的配置快照。</DialogDescription>
+          </DialogHeader>
+          {report && <SchemeReportView scheme={report} />}
+        </DialogContent>
+      </Dialog>
 
       {/* 新增决策记录 */}
       <Modal

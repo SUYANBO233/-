@@ -1,11 +1,11 @@
-import { fetchSchemeHistory } from '@/lib/api';
+import { listSchemeHistory } from '@/server/scheme';
 import { TopBar } from '@/components/overview/top-bar';
 import { HistoryLedger } from '@/components/scheme/history-ledger';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SchemePage() {
-  const data = await fetchSchemeHistory();
+  const data = await listSchemeHistory();
 
   return (
     <div className="min-h-screen bg-canvas text-ink">

@@ -19,12 +19,12 @@ export async function POST(req: Request) {
   }
 }
 
-/** DELETE /api/knowledge/schemes?no=xx */
+/** DELETE /api/knowledge/schemes?id=xx */
 export async function DELETE(req: Request) {
   try {
-    const no = Number(new URL(req.url).searchParams.get("no"));
-    if (!no) return NextResponse.json({ error: "缺少 no" }, { status: 400 });
-    await deleteSupportScheme(no);
+    const id = Number(new URL(req.url).searchParams.get("id"));
+    if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ message: "无效的 id" }, { status: 400 });
+    await deleteSupportScheme(id);
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json(

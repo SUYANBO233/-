@@ -19,12 +19,12 @@ export async function POST(req: Request) {
   }
 }
 
-/** DELETE /api/knowledge/mappings?code=xx */
+/** DELETE /api/knowledge/mappings?id=xx */
 export async function DELETE(req: Request) {
   try {
-    const code = new URL(req.url).searchParams.get("code");
-    if (!code) return NextResponse.json({ error: "缺少 code" }, { status: 400 });
-    await deleteMapping(code);
+    const id = Number(new URL(req.url).searchParams.get("id"));
+    if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ message: "无效的 id" }, { status: 400 });
+    await deleteMapping(id);
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json(

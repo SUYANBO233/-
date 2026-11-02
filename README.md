@@ -4,26 +4,30 @@
 
 ## 快速开始
 
-### 启动开发服务器
+### 启动前端与 Python 后端
 
 ```bash
-coze-dev dev
+pnpm install
+pnpm backend:install
+pnpm dev:all
 ```
 
-启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
+打开 [http://localhost:5000](http://localhost:5000) 查看系统。Python 接口文档位于 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。后端直接使用环境已有的 `python3`，不创建虚拟环境。
 
-开发服务器支持热更新，修改代码后页面会自动刷新。
+也可以分别执行 `pnpm backend:dev` 和 `pnpm dev`。当前参考规则支持 IV、V 级围岩的支护设计，并明确标记为未经工程标定的演示实现。算法替换和远程服务配置见 [Python 后端说明](docs/backend.md)。
+
+经验数据库和方案报告与决策台账在未配置 Supabase 时使用内置演示数据，可直接浏览。要启用数据管理和方案保存，请参照 [数据库部署说明](docs/database.md) 配置 `.env.local`，执行 `pnpm db:migrate` 和 `pnpm db:seed` 后重启。读取接口不会自动初始化数据库。
 
 ### 构建生产版本
 
 ```bash
-coze-dev build
+pnpm build
 ```
 
 ### 启动生产服务器
 
 ```bash
-coze-dev start
+COZE_PROJECT_ENV=PROD pnpm start
 ```
 
 ## 项目结构

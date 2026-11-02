@@ -11,7 +11,19 @@
     "lint:style": "stylelint \"src/**/*.css\"",
     "start": "bash ./scripts/start.sh",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm dlx concurrently --group --names lint-tsc,lint-build,lint-style \"pnpm ts-check\" \"pnpm lint:build\" \"pnpm lint:style\""
+    "validate": "pnpm dlx concurrently --group --names lint-tsc,lint-build,lint-style \"pnpm ts-check\" \"pnpm lint:build\" \"pnpm lint:style\"",
+    "db:plan": "tsx scripts/db-migrate.ts --plan",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:seed": "tsx scripts/db-seed.ts",
+    "test:db": "tsx --test tests/database.test.ts",
+    "backend:install": "bash scripts/backend.sh install",
+    "backend:dev": "bash scripts/backend.sh dev",
+    "backend:start": "bash scripts/backend.sh start",
+    "backend:test": "bash scripts/backend.sh test",
+    "backend:export-catalog": "tsx scripts/export-decision-catalog.ts",
+    "dev:all": "tsx scripts/dev-all.ts",
+    "test:decision-contract": "tsx scripts/check-decision-contract.ts",
+    "test:decision-api": "tsx --test tests/decision-backend.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -72,6 +84,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.16.0",

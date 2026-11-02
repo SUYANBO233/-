@@ -64,10 +64,11 @@ export function SchemeLibrary({ title, data }: { title: string; data: SupportSch
     };
   }, [list]);
 
-  async function del(no: number) {
+  async function del(id: number | undefined) {
+    if (id === undefined) return;
     try {
-      await deleteSupportScheme(no);
-      setList((prev) => prev.filter((s) => s.no !== no));
+      await deleteSupportScheme(id);
+      setList((prev) => prev.filter((s) => s.id !== id));
       show("已删除方案");
     } catch {
       show("删除失败，请重试");
@@ -77,13 +78,11 @@ export function SchemeLibrary({ title, data }: { title: string; data: SupportSch
   async function reset() {
     try {
       const fresh = await fetchKnowledge();
-      setList(fresh.schemes.map((d) => ({ ...d, custom: false })));
+      setList(fresh.schemes);
       setFilter("all");
-      show("已恢复标准方案");
+      show("已刷新方案列表");
     } catch {
-      setList(data.map((d) => ({ ...d, custom: false })));
-      setFilter("all");
-      show("已恢复标准方案");
+      show("刷新失败，请重试");
     }
   }
 
@@ -236,7 +235,7 @@ export function SchemeLibrary({ title, data }: { title: string; data: SupportSch
               </tr>
             ) : (
               filtered.map((s) => (
-                <tr key={s.no}>
+                <tr key={s.id ?? s.no}>
                   <td style={{ color: "#94a9c9" }} className="tabular-nums">
                     {s.no}
                   </td>
@@ -260,7 +259,7 @@ export function SchemeLibrary({ title, data }: { title: string; data: SupportSch
                   <td>{s.mode}</td><td>{s.advRate}</td><td>{s.benchLen}</td>
                   <td>
                     {s.custom ? (
-                      <button className="btn btn-sm btn-danger" onClick={() => del(s.no)}>
+                      <button className="btn btn-sm btn-danger" disabled={s.id === undefined} onClick={() => del(s.id)}>
                         删除
                       </button>
                     ) : (

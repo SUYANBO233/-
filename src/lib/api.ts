@@ -1,3 +1,4 @@
+import { decisionMetaSchema, inferMethodsResultSchema, supportDesignResultSchema, safetySchema, schemeReportSchema, parseDecisionResponse } from './validation/decision-response';
 import type {
   DecisionMeta,
   EquipmentItem,
@@ -5,13 +6,16 @@ import type {
   HistoryRecord,
   KnowledgeData,
   KnowledgeMapping,
-  MethodMatch,
   OverviewData,
   SafetyAssessment,
   SchemeHistoryData,
   SchemeReport,
   SupportComponent,
   SupportScheme,
+  SaveDecisionRequest,
+  SaveDecisionResult,
+  InferMethodsResult,
+  SupportDesignResult,
 } from './types';
 
 /**
@@ -54,7 +58,8 @@ export async function fetchOverview(): Promise<OverviewData> {
 
 /**
  * 获取经验数据库数据（装备 / 工法 / 知识映射 / 支护方案）。
- * 数据源：Supabase 持久化（首次为空时由服务层以种子数据入库）。
+ * 数据源：Supabase 持久化（通过独立初始化脚本导入种子数据）；
+ * 未配置 Supabase 时，服务层返回内置种子数据供本地浏览。
  */
 export async function fetchKnowledge(): Promise<KnowledgeData> {
   const res = await apiFetch('/api/knowledge', { cache: 'no-store' });
@@ -66,7 +71,8 @@ export async function fetchKnowledge(): Promise<KnowledgeData> {
 
 /**
  * 获取方案报告与历史决策台账数据。
- * 数据源：Supabase 持久化（首次为空时由服务层以种子数据入库）。
+ * 数据源：Supabase 持久化（通过独立初始化脚本导入种子数据）。
+ * 未配置 Supabase 时，服务层返回内置台账供本地浏览。
  */
 export async function fetchSchemeHistory(): Promise<SchemeHistoryData> {
   const res = await apiFetch('/api/scheme', { cache: 'no-store' });
@@ -74,6 +80,12 @@ export async function fetchSchemeHistory(): Promise<SchemeHistoryData> {
     throw new Error(`加载历史台账失败：${res.status}`);
   }
   return (await res.json()) as SchemeHistoryData;
+}
+
+export async function fetchSchemeReport(id: string): Promise<SchemeReport> {
+  const response = await apiFetch(`/api/scheme/reports/${encodeURIComponent(id)}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error('报告读取失败，请稍后重试');
+  return await response.json() as SchemeReport;
 }
 
 /* ============================================================
@@ -108,8 +120,8 @@ async function delJSON(url: string): Promise<void> {
 export async function createSchemeHistory(
   input: Omit<HistoryRecord, 'id' | 'custom'>
 ): Promise<HistoryRecord> {
-  const res = await postJSON<{ item: HistoryRecord }>('/api/scheme', input);
-  return res.item;
+  const res = await postJSON<{ record: HistoryRecord }>('/api/scheme', input);
+  return res.record;
 }
 
 /** 批量导入决策记录，返回入库数量 */
@@ -161,8 +173,8 @@ export async function importMappings(
   return res.count;
 }
 
-export async function deleteMapping(code: string): Promise<void> {
-  await delJSON(`/api/knowledge/mappings?code=${encodeURIComponent(code)}`);
+export async function deleteMapping(id: number): Promise<void> {
+  await delJSON(`/api/knowledge/mappings?id=${id}`);
 }
 
 /* ---- 经验数据库：支护方案 ---- */
@@ -181,118 +193,62 @@ export async function importSupportSchemes(
   return res.count;
 }
 
-export async function deleteSupportScheme(no: number): Promise<void> {
-  await delJSON(`/api/knowledge/schemes?no=${no}`);
+export async function deleteSupportScheme(id: number): Promise<void> {
+  await delJSON(`/api/knowledge/schemes?id=${id}`);
 }
 
 /* ============================================================
-   智能决策中心 —— 后端（Python）交互接口预留
+   Python 决策服务：浏览器始终访问同源 /api/decision/*，由 Next.js 转发。
+   方案入库属于本地业务 API /api/scheme/*。
    ============================================================ */
 
 const DECISION_API_BASE = '/api/decision';
 
-/**
- * 获取决策中心元数据（工作面、开挖里程下拉项等）。
- *
- * 后端就绪后：
- * const res = await fetch(`${DECISION_API_BASE}/meta`, { cache: 'no-store' });
- * return (await res.json()) as DecisionMeta;
- */
-export async function fetchDecisionMeta(): Promise<DecisionMeta> {
-  // 静态数据由组件直接从 @/data/decision 读取，本函数仅作为接口占位。
-  // 为保持「统一从数据访问层取数」的约定，这里做动态 import 转发。
-  const { DECISION_META } = await import('@/data/decision');
-  return DECISION_META;
+export async function saveDecisionScheme(input: SaveDecisionRequest): Promise<SaveDecisionResult> {
+  return postJSON<SaveDecisionResult>('/api/scheme/save-decision', input);
 }
 
-/** 推理请求体：18 项地质参数 */
+export async function fetchDecisionMeta(): Promise<DecisionMeta> {
+  const response = await apiFetch(`${DECISION_API_BASE}/meta`, { cache: 'no-store' });
+  if (!response.ok) {
+    const data: unknown = await response.json().catch(() => null);
+    const message = data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
+      ? data.message : '无法读取决策元数据';
+    throw new Error(message);
+  }
+  return parseDecisionResponse(decisionMetaSchema, await response.json());
+}
+
 export interface InferMethodsRequest {
   params: GeoParams;
-  /** 工作面 value */
   workface?: string;
-  /** 开挖里程桩号 */
   mileage?: string;
 }
 
-/**
- * Step 2：根据地质参数推理候选工法及匹配度。
- *
- * 后端就绪后：
- * const res = await fetch(`${DECISION_API_BASE}/infer-methods`, {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ params, workface, mileage }),
- * });
- * return (await res.json()) as { methods: MethodMatch[] };
- */
-export async function inferMethods(
-  _req: InferMethodsRequest,
-): Promise<{ methods: MethodMatch[] }> {
-  // TODO: Python 后端就绪后替换为真实请求。当前由前端规则引擎兜底。
-  throw new Error('决策推理接口待后端接入，当前使用前端内置规则引擎');
+export async function inferMethods(request: InferMethodsRequest): Promise<InferMethodsResult> {
+  return parseDecisionResponse(inferMethodsResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/infer-methods`, request));
 }
 
-/**
- * Step 3：根据选定工法与围岩级别生成支护设计。
- *
- * 后端就绪后：
- * const res = await fetch(`${DECISION_API_BASE}/design-support`, {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ params, methodKey }),
- * });
- * return (await res.json()) as { support: SupportComponent[]; safety: SafetyAssessment };
- */
-export async function designSupport(_req: {
-  params: GeoParams;
-  methodKey: string;
-}): Promise<{ support: SupportComponent[]; safety: SafetyAssessment }> {
-  throw new Error('支护设计接口待后端接入，当前使用前端内置规则引擎');
+export async function designSupport(request: {
+  params: GeoParams; methodKey: string; workface?: string; mileage?: string;
+}): Promise<SupportDesignResult> {
+  return parseDecisionResponse(supportDesignResultSchema, await postJSON<unknown>(`${DECISION_API_BASE}/design-support`, request));
 }
 
-/** 支护微调后重新校核安全度的请求体 */
 export interface RecheckRequest {
   params: GeoParams;
   methodKey: string;
   support: SupportComponent[];
+  workface?: string;
+  mileage?: string;
 }
 
-/**
- * Step 3：支护参数微调后重新校核安全度。
- *
- * 后端就绪后：
- * const res = await fetch(`${DECISION_API_BASE}/recheck-safety`, {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ params, methodKey, support }),
- * });
- * return (await res.json()) as SafetyAssessment;
- */
-export async function recheckSafety(_req: RecheckRequest): Promise<SafetyAssessment> {
-  throw new Error('安全校核接口待后端接入，当前使用前端内置规则引擎');
+export async function recheckSafety(request: RecheckRequest): Promise<SafetyAssessment> {
+  return parseDecisionResponse(safetySchema, await postJSON<unknown>(`${DECISION_API_BASE}/recheck-safety`, request));
 }
 
-/** 生成方案报告的请求体 */
-export interface GenerateSchemeRequest {
-  params: GeoParams;
-  mileage: string;
-  methodKey: string;
-  support: SupportComponent[];
-}
+export interface GenerateSchemeRequest extends RecheckRequest { mileage: string }
 
-/**
- * Step 4：生成完整施工配置方案报告。
- *
- * 后端就绪后：
- * const res = await fetch(`${DECISION_API_BASE}/generate-scheme`, {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ params, mileage, methodKey, support }),
- * });
- * return (await res.json()) as SchemeReport;
- */
-export async function generateSchemeApi(
-  _req: GenerateSchemeRequest,
-): Promise<SchemeReport> {
-  throw new Error('方案生成接口待后端接入，当前使用前端内置规则引擎');
+export async function generateSchemeApi(request: GenerateSchemeRequest): Promise<SchemeReport> {
+  return parseDecisionResponse(schemeReportSchema, await postJSON<unknown>(`${DECISION_API_BASE}/generate-scheme`, request));
 }

@@ -1,20 +1,19 @@
 import { knowledgeData } from "@/data/knowledge";
+import { supportParameters } from "@/lib/measurements";
 import type {
   EquipmentItem,
   KnowledgeData,
   KnowledgeMapping,
   SupportScheme,
 } from "@/lib/types";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseClient, loadEnv } from "@/storage/database/supabase-client";
+import { getSupabaseClient, hasSupabaseCredentials } from "@/storage/database/supabase-client";
 
 /**
  * 后端服务层 —— 经验数据库业务逻辑（Supabase 持久化）。
- * - 装备 / 知识映射 / 支护方案三张表落库，首次为空时以种子数据惰性种籽
- * - 标准工法（methods）为静态卡片，不落库
+ * - 装备 / 知识映射 / 支护方案 / 标准工法均从数据库读取
+ * - 数据初始化由 pnpm db:seed 显式执行，读取不再触发写入
  * - 写操作：新增 / 批量导入 / 删除
  */
-loadEnv();
 
 /* ---------------- 行 -> 领域类型 ---------------- */
 
@@ -43,6 +42,7 @@ function toEquip(r: EqRow): EquipmentItem {
 }
 
 interface MapRow {
+  id: number;
   no: number;
   code: string;
   hard: string;
@@ -56,6 +56,7 @@ interface MapRow {
 }
 function toMapping(r: MapRow): KnowledgeMapping {
   const m: KnowledgeMapping = {
+    id: r.id,
     no: r.no,
     code: r.code,
     hard: r.hard,
@@ -71,6 +72,7 @@ function toMapping(r: MapRow): KnowledgeMapping {
 }
 
 interface SchemeRow {
+  id: number;
   no: number;
   rock: string;
   type: string;
@@ -91,6 +93,7 @@ interface SchemeRow {
 }
 function toScheme(r: SchemeRow): SupportScheme {
   const s: SupportScheme = {
+    id: r.id,
     no: r.no,
     rock: r.rock,
     type: r.type,
@@ -113,9 +116,8 @@ function toScheme(r: SchemeRow): SupportScheme {
 }
 
 /** 支护方案：camelCase 领域对象 → snake_case 数据库行 */
-function toDbScheme(r: Omit<SupportScheme, "custom"> & { no: number; is_custom: boolean }) {
+function toDbScheme(r: Omit<SupportScheme, "custom" | "no"> & { is_custom: boolean }) {
   return {
-    no: r.no,
     rock: r.rock,
     type: r.type,
     depth: r.depth,
@@ -132,38 +134,16 @@ function toDbScheme(r: Omit<SupportScheme, "custom"> & { no: number; is_custom: 
     adv_rate: r.advRate,
     bench_len: r.benchLen,
     is_custom: r.is_custom,
+    parameters: supportParameters(r),
   };
-}
-
-/* ---------------- 惰性种籽 ---------------- */
-
-async function ensureSeeded(client: SupabaseClient): Promise<void> {
-  await seedIfEmpty(client, "equipment", knowledgeData.equipment);
-  await seedIfEmpty(client, "knowledge_mapping", knowledgeData.mappings);
-  await seedIfEmpty(client, "support_scheme", knowledgeData.schemes.map((s) => toDbScheme({ ...s, no: s.no, is_custom: false })));
-}
-
-async function seedIfEmpty(
-  client: SupabaseClient,
-  table: "equipment" | "knowledge_mapping" | "support_scheme",
-  rows: unknown[]
-): Promise<void> {
-  const { data, error } = await client.from(table).select("id").limit(1);
-  if (error) throw error;
-  if (!data || data.length === 0) {
-    const { error: insertErr } = await client
-      .from(table)
-      .insert(
-        rows.map((r) => ({ ...(r as Record<string, unknown>), is_custom: false })) as never[],
-      );
-    if (insertErr) throw insertErr;
-  }
 }
 
 /** 读取经验数据库全部数据（种子 + 用户新增） */
 export async function getKnowledge(): Promise<KnowledgeData> {
+  // 本地开发未配置数据库时仍可浏览内置经验库；写操作继续要求数据库配置。
+  if (!hasSupabaseCredentials()) return structuredClone(knowledgeData);
+
   const client = getSupabaseClient();
-  await ensureSeeded(client);
 
   const eq = await client
     .from("equipment")
@@ -183,8 +163,15 @@ export async function getKnowledge(): Promise<KnowledgeData> {
     .order("no", { ascending: true });
   if (sp.error) throw sp.error;
 
+  const methods = await client.from("construction_method").select("name,tone,geology,section,advantage,equipment_text").order("id");
+  if (methods.error) throw methods.error;
+
   return {
     ...knowledgeData,
+    methods: (methods.data ?? []).map((row) => ({
+      name: String(row.name), tone: row.tone === "ok" || row.tone === "warn" ? row.tone : "brand",
+      geology: String(row.geology), section: String(row.section), advantage: String(row.advantage), equipment: String(row.equipment_text),
+    })),
     equipment: (eq.data ?? []).map((r) => toEquip(r)),
     mappings: (mp.data ?? []).map((r) => toMapping(r)),
     schemes: (sp.data ?? []).map((r) => toScheme(r)),
@@ -200,6 +187,7 @@ export async function createEquipment(
   const { data, error } = await client
     .from("equipment")
     .insert({
+      source: "manual",
       name: input.name,
       model: input.model,
       num: input.num,
@@ -220,6 +208,7 @@ export async function importEquipment(
   const client = getSupabaseClient();
   if (list.length === 0) return 0;
   const rows = list.map((r) => ({
+    source: "import",
     name: r.name,
     model: r.model,
     num: r.num ?? 1,
@@ -245,16 +234,10 @@ export async function createMapping(
   input: Omit<KnowledgeMapping, "no" | "custom">
 ): Promise<KnowledgeMapping> {
   const client = getSupabaseClient();
-  const { data: maxRow } = await client
-    .from("knowledge_mapping")
-    .select("no")
-    .order("no", { ascending: false })
-    .limit(1);
-  const no = ((maxRow && maxRow[0]?.no) || 0) + 1;
   const { data, error } = await client
     .from("knowledge_mapping")
     .insert({
-      no,
+      source: "manual",
       code: input.code,
       hard: input.hard,
       intact: input.intact,
@@ -276,14 +259,8 @@ export async function importMappings(
 ): Promise<number> {
   const client = getSupabaseClient();
   if (list.length === 0) return 0;
-  const { data: maxRow } = await client
-    .from("knowledge_mapping")
-    .select("no")
-    .order("no", { ascending: false })
-    .limit(1);
-  let base = (maxRow && maxRow[0]?.no) || 0;
   const rows = list.map((r) => ({
-    no: ++base,
+    source: "import",
     code: r.code,
     hard: r.hard,
     intact: r.intact,
@@ -299,12 +276,12 @@ export async function importMappings(
   return rows.length;
 }
 
-export async function deleteMapping(code: string): Promise<void> {
+export async function deleteMapping(id: number): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await client
     .from("knowledge_mapping")
     .delete()
-    .eq("code", code);
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -314,15 +291,9 @@ export async function createSupportScheme(
   input: Omit<SupportScheme, "no" | "custom">
 ): Promise<SupportScheme> {
   const client = getSupabaseClient();
-  const { data: maxRow } = await client
-    .from("support_scheme")
-    .select("no")
-    .order("no", { ascending: false })
-    .limit(1);
-  const no = ((maxRow && maxRow[0]?.no) || 0) + 1;
   const { data, error } = await client
     .from("support_scheme")
-    .insert(toDbScheme({ ...input, no, is_custom: true }))
+    .insert({ ...toDbScheme({ ...input, is_custom: true }), source: "manual" })
     .select("*")
     .single();
   if (error) throw error;
@@ -334,20 +305,14 @@ export async function importSupportSchemes(
 ): Promise<number> {
   const client = getSupabaseClient();
   if (list.length === 0) return 0;
-  const { data: maxRow } = await client
-    .from("support_scheme")
-    .select("no")
-    .order("no", { ascending: false })
-    .limit(1);
-  let base = (maxRow && maxRow[0]?.no) || 0;
-  const rows = list.map((r) => toDbScheme({ ...r, no: ++base, is_custom: true }));
+  const rows = list.map((r) => ({ ...toDbScheme({ ...r, is_custom: true }), source: "import" }));
   const { error } = await client.from("support_scheme").insert(rows);
   if (error) throw error;
   return rows.length;
 }
 
-export async function deleteSupportScheme(no: number): Promise<void> {
+export async function deleteSupportScheme(id: number): Promise<void> {
   const client = getSupabaseClient();
-  const { error } = await client.from("support_scheme").delete().eq("no", no);
+  const { error } = await client.from("support_scheme").delete().eq("id", id);
   if (error) throw error;
 }
