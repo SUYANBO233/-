@@ -94,10 +94,10 @@
 | scheme-report.tsx | client | Step4 施工配置方案报告表 |
 | decision-placeholder.tsx | client | 未启动推理时的占位提示 |
 
-- 推理逻辑：`src/lib/decision-engine.ts`（前端规则引擎，**与后端接口同构**：工法推理、支护设计、安全校核、出方案）。
+- 推理逻辑：`backend/app/algorithms/reference.py`（Python 参考算法，工法推理、支护设计、评估、出方案）；`src/lib/decision-engine.ts` 保留为显式离线演示。
 - 静态数据：`src/data/decision.ts`（工法库、工作面、里程、围岩默认参数）。
 - 领域类型：`src/lib/types.ts` 中 `DecisionMode` / `GeoParams` / `MethodMatch` / `SupportComponent` / `SafetyAssessment` / `SchemeReport` 等。
-- **后端接入约定**：后端为 Python 服务，前端统一通过 `/api/decision/*` 同源路径访问（由部署层转发）。接口契约定义在 `src/lib/api.ts`（`inferMethods` / `designSupport` / `recheckSafety` / `generateSchemeApi`），当前这些函数抛出"待后端接入"，页面暂用 `decision-engine.ts` 兜底；后端就绪后把 `use-decision.ts` 中的引擎调用替换为 api.ts 请求即可，组件层零改动。
+- **后端接入约定**：后端为 Python 服务，前端统一通过 `/api/decision/*` 同源路径访问（由部署层转发）。接口契约定义在 `src/lib/api.ts`（`inferMethods` / `designSupport` / `recheckSafety` / `generateSchemeApi`），目前已提供 Python 参考算法服务，默认由 Next.js 同源代理访问；`decision-engine.ts` 仅用于显式离线演示。保存接口为 `/api/scheme/save-decision`，完整实现与替换方法见文末 Python 后端约定及 `docs/backend.md`。
 
 ### 经验数据库板块（`/knowledge`）
 
@@ -151,3 +151,12 @@ page.tsx (server，前端页面)
 
 - 数据契约统一为 `src/lib/types.ts` 中的 `OverviewData`，前端组件只依赖该类型。
 - 后端接入后仅需替换 `fetchOverview` 与 `src/server/overview.ts` 内部实现，路由与组件零改动。
+
+## Python 决策后端（已实现）
+
+- 独立服务位于 `backend/`，遵循 API 路由 → services → algorithms/repositories 分层。`backend/app/models.py` 与前端 camelCase 契约保持一致。
+- 直接使用 Codespaces 已有 `python3`，不创建虚拟环境。用 `pnpm backend:install` 安装依赖，`pnpm dev:all` 同时启动前后端。
+- 默认决策计算通过 `/api/decision/*` 由 Next.js 代理到 Python；服务端地址由 `DECISION_BACKEND_URL` 配置。显式离线演示才使用 `NEXT_PUBLIC_DECISION_CHANNEL=mock`。
+- 算法实现遵循 `backend/app/algorithms/base.py`，通过 `DECISION_ALGORITHM_FACTORY` 加载。当前参考实现只支持 IV/V 级围岩支护模板；不得把参考评分表述为经规范验证的工程结论。
+- 保存入口统一为 `/api/scheme/save-decision`；服务端调用 Python `build-snapshot` 重放版本后，使用已有 Supabase 事务保存。不要在数据库读写代码中复制算法。
+- 新算法或模板更改行为时更新版本号。输入/输出、版本变更、异常和算法替换均应测试；运行方法见 `docs/backend.md`。

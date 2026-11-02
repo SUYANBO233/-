@@ -165,6 +165,7 @@ export interface SafetyRadar {
 
 /** 初期支护安全度评估结果 */
 export interface SafetyAssessment {
+  algorithm?: AlgorithmInfo;
   /** 综合安全度 0~100 */
   score: number;
   tag: string;
@@ -182,12 +183,36 @@ export interface SchemeRow {
 
 /** 完整施工配置方案报告 */
 export interface SchemeReport {
+  algorithm?: AlgorithmInfo;
   no: string;
   time: string;
   mile: string;
   grade: string;
   method: string;
   rows: SchemeRow[];
+}
+
+/** 一次支护设计或人工微调的输入，结果由服务端重新校核后保存。 */
+export interface DecisionRevisionInput {
+  methodKey: 'full' | 'bench' | 'core';
+  values: Record<SupportComponentType, number>;
+  reason: string;
+}
+
+export interface SaveDecisionRequest {
+  algorithm?: AlgorithmInfo;
+  requestKey: string;
+  mode: DecisionMode;
+  workface: string;
+  mileage: string;
+  params: GeoParams;
+  revisions: DecisionRevisionInput[];
+}
+
+export interface SaveDecisionResult {
+  report: SchemeReport;
+  recordId: number;
+  decisionRunId: string;
 }
 
 /** 施工工作面选项 */
@@ -228,8 +253,29 @@ export interface GeoParams {
 
 /** 工作面与里程元数据 */
 export interface DecisionMeta {
+  algorithm?: AlgorithmInfo;
   workfaces: WorkfaceOption[];
   mileages: MileageOption[];
+}
+
+/** 服务返回的算法标识；请求走 Python 并不意味着模型已经过工程标定。 */
+export interface AlgorithmInfo {
+  id: string;
+  version: string;
+  reference: boolean;
+  description: string;
+}
+
+export interface InferMethodsResult {
+  methods: MethodMatch[];
+  algorithm: AlgorithmInfo;
+}
+
+export interface SupportDesignResult {
+  support: SupportComponent[];
+  safety: SafetyAssessment;
+  mechanism: ArchMechanism;
+  algorithm: AlgorithmInfo;
 }
 
 /** 系统总览聚合数据体 */
@@ -294,6 +340,8 @@ export interface MethodCard {
 
 /** 地质环境特征 - 知识方案映射 */
 export interface KnowledgeMapping {
+  /** 数据库主键；静态种子不依赖该字段。 */
+  id?: number;
   no: number;
   code: string;
   hard: string;
@@ -312,6 +360,7 @@ export type RockFilter = 'all' | 'IV' | 'V';
 
 /** 支护体系与优选方案 */
 export interface SupportScheme {
+  id?: number;
   no: number;
   rock: string;
   type: string;
@@ -373,6 +422,9 @@ export interface HistoryRecord {
   detail: string;
   /** 是否为用户新增/导入的记录（非内置标准项） */
   custom?: boolean;
+  source?: string;
+  schemeReportId?: string;
+  decisionRunId?: string;
 }
 
 /** 历史决策台账聚合数据 */

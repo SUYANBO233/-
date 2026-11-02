@@ -1,244 +1,174 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import {
-  DEFAULT_GEO_PARAMS_IV,
-  DEFAULT_GEO_PARAMS_V,
-} from '@/data/decision';
-import {
-  applySupportValue,
-  assessSafety,
-  generateScheme,
-  recommendMethodKey,
-} from '@/lib/decision-engine';
-import {
-  designSupportCandidates,
-  inferMethodCandidates,
-} from '@/lib/decision-adapter';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_GEO_PARAMS_IV, DEFAULT_GEO_PARAMS_V, DECISION_META } from '@/data/decision';
+import { applySupportValue } from '@/lib/decision-engine';
+import { designSupportCandidates, inferMethodCandidates, loadDecisionMeta, recheckSupport, buildSchemeReport } from '@/lib/decision-adapter';
 import type {
-  DecisionMode,
-  GeoParams,
-  MethodMatch,
-  RockGrade,
-  SchemeReport,
-  SupportComponent,
+  AlgorithmInfo, ArchMechanism, DecisionMeta, DecisionMode, DecisionRevisionInput, GeoParams,
+  MethodMatch, RockGrade, SafetyAssessment, SaveDecisionRequest, SchemeReport, SupportComponent,
 } from '@/lib/types';
 
-/** 决策流程四步 */
 export type DecisionStep = 1 | 2 | 3 | 4;
-
-/** 决策等待阶段：method=推理工法，support=设计支护参数，null=空闲 */
 export type DecisionLoadingPhase = 'method' | 'support' | null;
-
 export interface DecisionState {
-  mode: DecisionMode;
-  workface: string;
-  mileage: string;
-  params: GeoParams;
-  step: DecisionStep;
-  /** 已推理出的候选工法（Step 2 产物） */
-  methods: MethodMatch[];
-  selectedMethodKey: string | null;
-  /** 支护设计（Step 3 产物） */
-  support: SupportComponent[];
-  safety: ReturnType<typeof assessSafety> | null;
-  /** 方案报告（Step 4 产物） */
-  scheme: SchemeReport | null;
-  /** 已发生微调的支护构件 key */
-  adjusted: Set<SupportComponent['key']>;
+  step: DecisionStep; methods: MethodMatch[]; selectedMethodKey: string | null;
+  support: SupportComponent[]; safety: SafetyAssessment | null; mechanism: ArchMechanism | null;
+  algorithm: AlgorithmInfo | null; scheme: SchemeReport | null;
+  adjusted: Set<SupportComponent['key']>; revisions: DecisionRevisionInput[];
+  saveRequest: SaveDecisionRequest | null; needsCheck: boolean;
+}
+function initialState(): DecisionState {
+  return { step: 1, methods: [], selectedMethodKey: null, support: [], safety: null, mechanism: null,
+    algorithm: null, scheme: null, adjusted: new Set(), revisions: [], saveRequest: null, needsCheck: false };
+}
+function revision(methodKey: string, support: SupportComponent[], reason: string): DecisionRevisionInput {
+  if (methodKey !== 'full' && methodKey !== 'bench' && methodKey !== 'core') throw new Error('未知工法');
+  const value = (key: SupportComponent['key']): number => {
+    const component = support.find((item) => item.key === key);
+    if (!component) throw new Error(`缺少支护构件：${key}`);
+    return component.valNum;
+  };
+  return { methodKey, values: { steel: value('steel'), shot: value('shot'), anchor: value('anchor'), advance: value('advance') }, reason };
+}
+const message = (error: unknown): string => error instanceof Error ? error.message : '决策服务请求失败';
+function sameAlgorithm(left: AlgorithmInfo | null, right: AlgorithmInfo | undefined): boolean {
+  return Boolean(left && right && left.id === right.id && left.version === right.version && left.reference === right.reference);
 }
 
-/**
- * 智能决策中心状态编排 Hook。
- *
- * 封装四步决策的全部状态流转：
- * 1. 修改参数/工作面 → 2. 推理工法 → 3. 支护设计与校核 → 4. 生成方案。
- *
- * 当前使用前端规则引擎（src/lib/decision-engine.ts）；
- * Python 后端就绪后，将下方对引擎的调用替换为 src/lib/api.ts 中的请求函数即可，
- * 组件层无需改动。
- */
 export function useDecision() {
-  const [mode, setMode] = useState<DecisionMode>('joint');
-  const [workface, setWorkface] = useState('shayi_main');
-  const [mileage, setMileage] = useState('K3601+200');
-  const [params, setParams] = useState<GeoParams>(DEFAULT_GEO_PARAMS_IV);
-
-  const [step, setStep] = useState<DecisionStep>(1);
-  const [methods, setMethods] = useState<MethodMatch[]>([]);
-  const [selectedMethodKey, setSelectedMethodKey] = useState<string | null>(null);
-  const [support, setSupport] = useState<SupportComponent[]>([]);
-  const [safety, setSafety] = useState<ReturnType<typeof assessSafety> | null>(null);
-  const [scheme, setScheme] = useState<SchemeReport | null>(null);
-  const [adjusted, setAdjusted] = useState<Set<SupportComponent['key']>>(new Set());
+  const [input, setInput] = useState({ mode: 'joint' as DecisionMode, workface: 'shayi_main', mileage: 'K3601+200', params: DEFAULT_GEO_PARAMS_IV });
+  const [state, setState] = useState<DecisionState>(initialState);
+  const [meta, setMeta] = useState<DecisionMeta>(DECISION_META);
+  const [metaReady, setMetaReady] = useState(false);
+  const [metaRetry, setMetaRetry] = useState(0);
   const [loading, setLoading] = useState<DecisionLoadingPhase>(null);
+  const [checking, setChecking] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [checkTick, setCheckTick] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const epoch = useRef(0);
 
-  /** 切换决策模式 */
-  const changeMode = useCallback((m: DecisionMode) => {
-    setMode(m);
+  const invalidate = useCallback(() => {
+    epoch.current += 1; setState(initialState()); setLoading(null); setChecking(false); setReporting(false); setError(null);
   }, []);
 
-  /** 更新单项地质参数 */
-  const updateParam = useCallback(
-    <K extends keyof GeoParams>(key: K, value: GeoParams[K]) => {
-      setParams((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  useEffect(() => {
+    let live = true;
+    setMetaReady(false);
+    void loadDecisionMeta().then((data) => {
+      if (!live) return;
+      invalidate(); setMeta(data);
+      setInput((prev) => ({ ...prev,
+        workface: data.workfaces.some((item) => item.value === prev.workface) ? prev.workface : data.workfaces[0].value,
+        mileage: data.mileages.some((item) => item.mile === prev.mileage) ? prev.mileage : data.mileages[0].mile,
+      }));
+      setMetaReady(true);
+    }).catch((reason: unknown) => { if (live) setError(message(reason)); });
+    return () => { live = false; };
+  }, [invalidate, metaRetry]);
 
-  /**
-   * 切换工作面：按围岩级别回填一组默认地质参数。
-   * 对应原 HTML onWorkfaceChange / fetchUniformData。
-   */
-  const changeWorkface = useCallback((value: string, grade: RockGrade) => {
-    setWorkface(value);
-    setParams(grade === 'V' ? DEFAULT_GEO_PARAMS_V : DEFAULT_GEO_PARAMS_IV);
-  }, []);
-
-  /** 切换开挖里程 */
-  const changeMileage = useCallback((value: string) => {
-    setMileage(value);
-  }, []);
-
-  /**
-   * Step 1 → Step 2：启动智能推理，计算候选工法匹配度。
-   * 推理期间展示「等待弹窗」；mock 通道模拟延迟，real 通道走后端算法接口。
-   */
-  const runInfer = useCallback(async () => {
-    setLoading('method');
-    try {
-      const matched = await inferMethodCandidates(params);
-      setMethods(matched);
-      setSelectedMethodKey(recommendMethodKey(params.grade));
-      // 重置后续步骤产物
-      setSupport([]);
-      setSafety(null);
-      setScheme(null);
-      setAdjusted(new Set());
-      setStep(2);
-    } finally {
-      setLoading(null);
-    }
-  }, [params]);
-
-  /** Step 2：人工改选工法 */
-  const selectMethod = useCallback((key: string) => {
-    setSelectedMethodKey(key);
-  }, []);
-
-  /**
-   * Step 2 → Step 3：确认推荐工法，生成初期支护设计并校核。
-   * 推理期间展示「等待弹窗」；mock 通道模拟延迟，real 通道走后端算法接口。
-   */
-  const confirmMethod = useCallback(async () => {
-    if (!selectedMethodKey) return;
-    setLoading('support');
-    try {
-      const { support: nextSupport, safety: nextSafety } =
-        await designSupportCandidates(params, selectedMethodKey);
-      setSupport(nextSupport);
-      setSafety(nextSafety);
-      setScheme(null);
-      setStep(3);
-    } finally {
-      setLoading(null);
-    }
-  }, [params, selectedMethodKey]);
-
-  /**
-   * Step 3：微调某支护构件数值，实时重新校核安全度。
-   */
-  const adjustSupport = useCallback(
-    (key: SupportComponent['key'], value: number) => {
-      setSupport((prev) => {
-        const next = prev.map((c) =>
-          c.key === key ? applySupportValue(c, value) : c,
-        );
-        setSafety(assessSafety(params, next));
-        return next;
-      });
-      setAdjusted((prev) => {
-        const next = new Set(prev);
-        next.add(key);
-        return next;
-      });
-    },
-    [params],
-  );
-
-  /** Step 3：重新校核（基于当前支护参数） */
-  const recheck = useCallback(() => {
-    if (support.length > 0) {
-      setSafety(assessSafety(params, support));
-    }
-  }, [params, support]);
-
-  /**
-   * Step 3 → Step 4：生成完整施工配置方案报告。
-   */
-  const buildScheme = useCallback(() => {
-    if (!selectedMethodKey) return;
-    const report = generateScheme(params, mileage, selectedMethodKey, support);
-    setScheme(report);
-    setStep(4);
-  }, [params, mileage, selectedMethodKey, support]);
-
-  /** 返回 Step 2 修改工法 */
-  const backToMethod = useCallback(() => {
-    setStep(2);
-  }, []);
-
-  /** 重置整个决策流程 */
-  const reset = useCallback(() => {
-    setMethods([]);
-    setSelectedMethodKey(null);
-    setSupport([]);
-    setSafety(null);
-    setScheme(null);
-    setAdjusted(new Set());
-    setStep(1);
-  }, []);
-
-  /** 重置参数为当前工作面默认值 */
+  const changeMode = useCallback((mode: DecisionMode) => { invalidate(); setInput((prev) => ({ ...prev, mode })); }, [invalidate]);
+  const updateParam = useCallback(<K extends keyof GeoParams>(key: K, value: GeoParams[K]) => {
+    invalidate(); setInput((prev) => ({ ...prev, params: { ...prev.params, [key]: value } }));
+  }, [invalidate]);
+  const changeWorkface = useCallback((workface: string, grade: RockGrade) => {
+    invalidate(); setInput((prev) => ({ ...prev, workface, params: grade === 'V' ? DEFAULT_GEO_PARAMS_V : DEFAULT_GEO_PARAMS_IV }));
+  }, [invalidate]);
+  const changeMileage = useCallback((mileage: string) => { invalidate(); setInput((prev) => ({ ...prev, mileage })); }, [invalidate]);
   const resetParams = useCallback(() => {
-    setParams((prev) =>
-      prev.grade === 'V' ? DEFAULT_GEO_PARAMS_V : DEFAULT_GEO_PARAMS_IV,
-    );
+    invalidate(); setInput((prev) => ({ ...prev, params: prev.params.grade === 'V' ? DEFAULT_GEO_PARAMS_V : DEFAULT_GEO_PARAMS_IV }));
+  }, [invalidate]);
+
+  const runInfer = useCallback(async () => {
+    if (!metaReady) return;
+    const current = ++epoch.current;
+    setLoading('method'); setError(null);
+    try {
+      const result = await inferMethodCandidates(input);
+      if (epoch.current === current) setState({ ...initialState(), methods: result.methods, algorithm: result.algorithm,
+        selectedMethodKey: result.methods.find((item) => item.matched)?.key ?? result.methods[0]?.key ?? null, step: 2 });
+    } catch (reason: unknown) { if (epoch.current === current) setError(message(reason)); }
+    finally { if (epoch.current === current) setLoading(null); }
+  }, [input, metaReady]);
+
+  const selectMethod = useCallback((key: string) => {
+    epoch.current += 1; setLoading(null); setChecking(false); setReporting(false); setError(null);
+    setState((prev) => ({ ...prev, selectedMethodKey: key, support: [], safety: null, mechanism: null,
+      scheme: null, saveRequest: null, needsCheck: false, step: 2 }));
   }, []);
 
-  const selectedMethod = useMemo(
-    () => methods.find((m) => m.key === selectedMethodKey) ?? null,
-    [methods, selectedMethodKey],
-  );
+  const confirmMethod = useCallback(async () => {
+    const methodKey = state.selectedMethodKey;
+    if (!methodKey) return;
+    const current = ++epoch.current;
+    setLoading('support'); setError(null);
+    try {
+      const result = await designSupportCandidates({ ...input, methodKey });
+      if (!sameAlgorithm(state.algorithm, result.algorithm)) throw new Error('算法版本已变化，请重新推理');
+      if (epoch.current === current) setState((prev) => ({ ...prev, ...result, scheme: null, saveRequest: null,
+        needsCheck: false, adjusted: new Set(), step: 3,
+        revisions: [...prev.revisions, revision(methodKey, result.support, '初始支护设计')] }));
+    } catch (reason: unknown) { if (epoch.current === current) setError(message(reason)); }
+    finally { if (epoch.current === current) setLoading(null); }
+  }, [input, state.selectedMethodKey, state.algorithm]);
 
-  return {
-    // state
-    mode,
-    workface,
-    mileage,
-    params,
-    step,
-    methods,
-    selectedMethodKey,
-    selectedMethod,
-    support,
-    safety,
-    scheme,
-    adjusted,
-    loading,
-    // actions
-    changeMode,
-    updateParam,
-    changeWorkface,
-    changeMileage,
-    runInfer,
-    selectMethod,
-    confirmMethod,
-    adjustSupport,
-    recheck,
-    buildScheme,
-    backToMethod,
-    reset,
-    resetParams,
-  };
+  const adjustSupport = useCallback((key: SupportComponent['key'], value: number) => {
+    const limit = { steel: 1000, shot: 200, anchor: 100, advance: 1000 }[key];
+    if (!Number.isFinite(value) || value <= 0 || value > limit) { setError(`请输入大于 0 且不超过 ${limit} 的${key}数值`); return; }
+    epoch.current += 1; setReporting(false); setError(null);
+    setState((prev) => {
+      if (!prev.selectedMethodKey || prev.support.length === 0) return prev;
+      const support = prev.support.map((item) => item.key === key ? applySupportValue(item, value) : item);
+      return { ...prev, support, safety: null, scheme: null, saveRequest: null, step: 3, needsCheck: true,
+        adjusted: new Set([...prev.adjusted, key]), revisions: [...prev.revisions, revision(prev.selectedMethodKey, support, `调整${key}`)] };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!state.needsCheck || !state.selectedMethodKey) { setChecking(false); return; }
+    const current = epoch.current;
+    let live = true;
+    setChecking(true);
+    const timer = setTimeout(() => {
+      void recheckSupport({ ...input, methodKey: state.selectedMethodKey!, support: state.support }).then((safety) => {
+        if (!live || epoch.current !== current) return;
+        if (!sameAlgorithm(state.algorithm, safety.algorithm)) throw new Error('算法版本已变化，请重新推理');
+        setState((prev) => ({ ...prev, safety, needsCheck: false })); setError(null);
+      }).catch((reason: unknown) => { if (live && epoch.current === current) setError(message(reason)); })
+        .finally(() => { if (live && epoch.current === current) setChecking(false); });
+    }, 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [input, state.needsCheck, state.support, state.selectedMethodKey, state.algorithm, checkTick]);
+
+  const recheck = useCallback(() => {
+    epoch.current += 1; setReporting(false);
+    setError(null); setCheckTick((value) => value + 1);
+    setState((prev) => !prev.selectedMethodKey || prev.support.length === 0 ? prev : ({ ...prev, safety: null,
+      scheme: null, saveRequest: null, needsCheck: true, step: 3,
+      revisions: [...prev.revisions, revision(prev.selectedMethodKey, prev.support, '人工重新校核')] }));
+  }, []);
+
+  const buildScheme = useCallback(async () => {
+    if (!state.selectedMethodKey || !state.safety || state.needsCheck || checking) return;
+    const current = ++epoch.current;
+    setReporting(true); setError(null);
+    try {
+      const scheme = await buildSchemeReport({ ...input, methodKey: state.selectedMethodKey, support: state.support });
+      if (!sameAlgorithm(state.algorithm, scheme.algorithm)) throw new Error('算法版本已变化，请重新推理');
+      const saveRequest: SaveDecisionRequest = { ...input, requestKey: crypto.randomUUID(), revisions: structuredClone(state.revisions),
+        ...(state.algorithm ? { algorithm: state.algorithm } : {}) };
+      if (epoch.current === current) setState((prev) => ({ ...prev, scheme, step: 4, saveRequest }));
+    } catch (reason: unknown) { if (epoch.current === current) setError(message(reason)); }
+    finally { if (epoch.current === current) setReporting(false); }
+  }, [input, state, checking]);
+
+  const backToMethod = useCallback(() => {
+    epoch.current += 1; setChecking(false); setReporting(false);
+    setState((prev) => ({ ...prev, step: 2, scheme: null, saveRequest: null, needsCheck: false }));
+  }, []);
+  const selectedMethod = useMemo(() => state.methods.find((method) => method.key === state.selectedMethodKey) ?? null, [state.methods, state.selectedMethodKey]);
+  return { ...input, ...state, selectedMethod, loading, checking, reporting, error, meta, metaReady,
+    retryMeta: () => setMetaRetry((value) => value + 1), changeMode, updateParam, changeWorkface, changeMileage,
+    runInfer, selectMethod, confirmMethod, adjustSupport, recheck, buildScheme, backToMethod, reset: invalidate, resetParams };
 }

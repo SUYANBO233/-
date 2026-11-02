@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
 import { config } from 'dotenv';
+import path from 'node:path';
 import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
@@ -17,7 +18,7 @@ function loadEnv(): void {
 
   try {
     try {
-      config();
+      config({ path: [path.resolve(process.cwd(), '.env.local'), path.resolve(process.cwd(), '.env')], quiet: true });
       if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
         envLoaded = true;
         return;

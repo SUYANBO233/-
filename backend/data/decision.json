@@ -1,0 +1,167 @@
+{
+  "methods": [
+    {
+      "key": "full",
+      "name": "全断面开挖法",
+      "rock": "Ⅰ、Ⅱ、Ⅲ 级围岩",
+      "cycle": "12.0 h",
+      "adv": "3.0 m",
+      "shot": "15 cm",
+      "month": "110 m/月",
+      "desc": "适用于岩体坚硬完整段，全断面一次爆破成型，大型机械化作业空间大、循环进尺快。",
+      "equip": "潜孔钻机/凿岩台车 + 装载机 + 20方自卸车 + 湿喷台车"
+    },
+    {
+      "key": "bench",
+      "name": "台阶法",
+      "rock": "Ⅳ 级围岩",
+      "cycle": "14.5 h",
+      "adv": "2.0 m",
+      "shot": "22 cm",
+      "month": "90 m/月",
+      "desc": "适用于Ⅳ级中风化变质灰岩段，上台阶先行开挖支护，下台阶跟进，兼顾进度与稳定。",
+      "equip": "挖掘机 + 装载机 + 20方自卸车 + 拱架台车 + 湿喷台车"
+    },
+    {
+      "key": "core",
+      "name": "环形开挖预留核心土法",
+      "rock": "Ⅴ 级围岩",
+      "cycle": "15.5 h",
+      "adv": "0.8 m",
+      "shot": "26 cm",
+      "month": "45 m/月",
+      "desc": "适用于Ⅴ级深埋大变形段，核心土支护掌子面防坍塌，配合掌子面加固(3h)。",
+      "equip": "潜孔钻机 + 超前地质钻机 + 75型挖机 + 湿喷台车 + 拱架台车"
+    }
+  ],
+  "meta": {
+    "workfaces": [
+      {
+        "value": "shayi_main",
+        "label": "沙益1号隧道主洞掌子面",
+        "grade": "IV"
+      },
+      {
+        "value": "shayi_pilot",
+        "label": "沙益1号隧道平导掌子面",
+        "grade": "IV"
+      }
+    ],
+    "mileages": [
+      {
+        "value": "m1",
+        "label": "K3601+200",
+        "mile": "K3601+200"
+      },
+      {
+        "value": "m2",
+        "label": "K3600+450",
+        "mile": "K3600+450"
+      },
+      {
+        "value": "m3",
+        "label": "K3599+050",
+        "mile": "K3599+050"
+      },
+      {
+        "value": "m4",
+        "label": "K3601+900",
+        "mile": "K3601+900"
+      }
+    ]
+  },
+  "supportByGrade": {
+    "IV": [
+      {
+        "key": "steel",
+        "label": "型钢钢架 (表4.1-1)",
+        "spec": "I16 工字钢架",
+        "layout": "间距 80 cm",
+        "valNum": 80,
+        "unit": "cm",
+        "basis": "与锚喷形成空间受力拱",
+        "conf": 0.94,
+        "color": "#5aa2f8"
+      },
+      {
+        "key": "shot",
+        "label": "喷射混凝土",
+        "spec": "C25 喷射混凝土",
+        "layout": "厚度 22 cm",
+        "valNum": 22,
+        "unit": "cm",
+        "basis": "湿喷早强密贴封闭",
+        "conf": 0.95,
+        "color": "#3ddc97"
+      },
+      {
+        "key": "anchor",
+        "label": "系统锚杆",
+        "spec": "Φ22 药卷锚杆",
+        "layout": "L=3.0m · 间距 120×80cm",
+        "valNum": 3,
+        "unit": "m",
+        "basis": "悬吊与组合拱加固",
+        "conf": 0.91,
+        "color": "#2dd4bf"
+      },
+      {
+        "key": "advance",
+        "label": "超前支护",
+        "spec": "Φ22 药卷超前锚杆",
+        "layout": "L=4.5m · 环向间距 40cm",
+        "valNum": 40,
+        "unit": "cm",
+        "basis": "拱顶超前导向支护",
+        "conf": 0.9,
+        "color": "#a78bfa"
+      }
+    ],
+    "V": [
+      {
+        "key": "steel",
+        "label": "型钢钢架 (表4.1-1)",
+        "spec": "I20 工字钢架",
+        "layout": "间距 60 cm",
+        "valNum": 60,
+        "unit": "cm",
+        "basis": "承担深埋大变形围岩压力",
+        "conf": 0.95,
+        "color": "#f7b955"
+      },
+      {
+        "key": "shot",
+        "label": "喷射混凝土",
+        "spec": "C25 喷射混凝土",
+        "layout": "厚度 26 cm",
+        "valNum": 26,
+        "unit": "cm",
+        "basis": "分层初喷封闭与复喷包裹",
+        "conf": 0.94,
+        "color": "#3ddc97"
+      },
+      {
+        "key": "anchor",
+        "label": "系统锚杆",
+        "spec": "Φ25 中孔/中空锚杆",
+        "layout": "L=3.5m · 间距 60×60cm",
+        "valNum": 3.5,
+        "unit": "m",
+        "basis": "深部注浆锚固",
+        "conf": 0.92,
+        "color": "#5aa2f8"
+      },
+      {
+        "key": "advance",
+        "label": "超前支护",
+        "spec": "Φ42 小导管注浆",
+        "layout": "L=4.5m · 环向间距 40cm",
+        "valNum": 40,
+        "unit": "cm",
+        "basis": "拱部超前预加固防坍",
+        "conf": 0.93,
+        "color": "#a78bfa"
+      }
+    ]
+  }
+}

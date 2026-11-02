@@ -13,6 +13,9 @@ import type { ArchMechanism, SafetyAssessment, SupportComponent } from '@/lib/ty
 import { cn } from '@/lib/utils';
 
 interface SupportDesignProps {
+  checking?: boolean;
+  reporting?: boolean;
+  reference?: boolean;
   mechanism: ArchMechanism;
   support: SupportComponent[];
   safety: SafetyAssessment | null;
@@ -24,6 +27,9 @@ interface SupportDesignProps {
 }
 
 export function SupportDesign({
+  checking = false,
+  reporting = false,
+  reference = true,
   mechanism,
   support,
   safety,
@@ -52,8 +58,8 @@ export function SupportDesign({
   return (
     <div className="mb">
       <div className="sec-title">
-        Step 3 · 初期支护结构设计与成拱力学校核
-        <span className="sub">压力拱先验机理 + 构件数值直接输入微调</span>
+        Step 3 · 初期支护设计与评估
+        <span className="sub">{reference ? '参考模板与演示评分 · 未经工程标定' : '算法服务返回的设计与评估结果'}</span>
       </div>
 
       {/* 成拱力学机理 */}
@@ -62,15 +68,15 @@ export function SupportDesign({
         style={{ background: 'linear-gradient(180deg,rgba(45,212,191,.04),rgba(255,255,255,.01))' }}
       >
         <div className="card-title mb-3 flex items-center gap-2 text-[14.5px] font-semibold text-ink">
-          围岩成拱效应与物理先验约束参数
+          围岩成拱参数
           <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
-            力学机理与驱动模型
+            {reference ? '参考模板' : '算法结果'}
           </span>
         </div>
         <div className="mech-grid">
           <div className="mech-cell">
             <div className="mv text-brand">{mechanism.height}</div>
-            <div className="ml">压力拱平衡高度 (普氏理论)</div>
+            <div className="ml">压力拱高度{reference && '（参考）'}</div>
           </div>
           <div className="mech-cell">
             <div className="mv text-warn">{mechanism.release}</div>
@@ -78,13 +84,13 @@ export function SupportDesign({
           </div>
           <div className="mech-cell">
             <div className="mv text-ok">{mechanism.closeTime}</div>
-            <div className="ml">最佳初支封闭时机 (距掌子面)</div>
+            <div className="ml">初支封闭时机{reference && '（参考）'}</div>
           </div>
           <div className="mech-cell">
             <div className="mv leading-snug text-violet" style={{ fontSize: 15 }}>
-              PINN 物理驱动
+              {reference ? '项目参考规则' : '后端算法服务'}
             </div>
-            <div className="ml">18维力学输入→4维支护输出</div>
+            <div className="ml">地质参数 → 四类支护配置</div>
           </div>
         </div>
       </div>
@@ -96,7 +102,7 @@ export function SupportDesign({
             <div className="sc-head">
               <span className="st">{s.label}</span>
               <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-medium text-brand">
-                {Math.round(s.conf * 100)}% 置信
+                {reference ? '参考模板' : `${Math.round(s.conf * 100)}% 置信`}
               </span>
             </div>
             <div className="sc-p">
@@ -140,7 +146,7 @@ export function SupportDesign({
       <div className="mb grid grid-cols-1 gap-3.5 lg:grid-cols-2">
         <div className="card" style={{ borderTop: '3px solid #3ddc97' }}>
           <div className="card-title mb-3 flex items-center gap-2 text-[14.5px] font-semibold text-ink">
-            初期支护多维承载安全度评估
+            {reference ? '支护参数参考评分' : '初期支护安全度评估'}
             <span
               className={cn(
                 'rounded-full px-2 py-0.5 text-[11.5px] font-medium',
@@ -151,7 +157,7 @@ export function SupportDesign({
                     : 'bg-danger-soft text-danger',
               )}
             >
-              {safety?.tag}
+              {checking ? '正在重新评估…' : safety?.tag ?? '等待评估'}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-[18px]">
@@ -174,17 +180,17 @@ export function SupportDesign({
               </svg>
               <div className="g-num">
                 <div className="v" style={{ color: scoreColor }}>
-                  {score}
+                  {safety ? score : '—'}
                 </div>
-                <div className="l">综合安全度</div>
+                <div className="l">{reference ? '参考评分' : '综合安全度'}</div>
               </div>
             </div>
             <div className="min-w-[180px] flex-1">
               <div className="text-[12px] leading-relaxed text-ink-2">{safety?.reason}</div>
               <div className="mt-2 flex justify-between text-[10.5px] text-ink-3">
-                <span className="text-danger">危险 &lt; 60</span>
-                <span className="text-warn">注意 60~75</span>
-                <span className="text-ok">安全 &gt; 75</span>
+                <span className="text-danger">{reference ? '较低' : '危险'} &lt; 60</span>
+                <span className="text-warn">{reference ? '一般' : '注意'} 60~75</span>
+                <span className="text-ok">{reference ? '较高' : '安全'} &gt; 75</span>
               </div>
             </div>
           </div>
@@ -192,7 +198,7 @@ export function SupportDesign({
 
         <div className="card">
           <div className="card-title mb-3 text-[14.5px] font-semibold text-ink">
-            支护结构分项安全裕度雷达图
+            {reference ? '支护参数参考指标雷达图' : '支护结构分项安全裕度雷达图'}
           </div>
           <div className="h-[190px] w-full">
             {mounted && (
@@ -202,7 +208,7 @@ export function SupportDesign({
                   <PolarAngleAxis dataKey="label" tick={{ fill: '#a9bdd8', fontSize: 10.5 }} />
                   <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                   <Radar
-                    name="安全裕度指标"
+                    name={reference ? '参考指标' : '安全裕度指标'}
                     dataKey="value"
                     stroke="#2dd4bf"
                     fill="rgba(45,212,191,.18)"
@@ -220,12 +226,13 @@ export function SupportDesign({
         <button
           type="button"
           onClick={onRecheck}
+          disabled={checking || reporting}
           className="inline-flex items-center gap-1.5 rounded-[7px] border border-line bg-white/5 px-4 py-2 text-[13px] font-semibold text-ink-2 transition-all hover:border-line-strong hover:bg-white/[0.09] hover:text-ink"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6" />
           </svg>
-          重新校核安全度
+          {checking ? '正在评估…' : reference ? '重新计算参考评分' : '重新校核安全度'}
         </button>
         <div className="flex gap-2.5">
           <button
@@ -238,9 +245,10 @@ export function SupportDesign({
           <button
             type="button"
             onClick={onGenerate}
+            disabled={checking || reporting || !safety}
             className="inline-flex items-center justify-center gap-1.5 rounded-[7px] bg-gradient-to-br from-[#1fb8a4] to-[#0e8f96] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_3px_14px_rgba(45,212,191,.22)] transition-transform hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(45,212,191,.35)]"
           >
-            生成全套施工配置报告
+            {reporting ? '正在生成报告…' : '生成全套施工配置报告'}
           </button>
         </div>
       </div>

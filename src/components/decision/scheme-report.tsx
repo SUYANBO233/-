@@ -1,13 +1,16 @@
 'use client';
 
 import type { SchemeReport } from '@/lib/types';
+import { Button } from '@/components/ui/button';
 
 interface SchemeReportViewProps {
   scheme: SchemeReport;
-  onSave: () => void;
+  onSave?: () => void;
+  saving?: boolean;
+  saved?: boolean;
 }
 
-export function SchemeReportView({ scheme, onSave }: SchemeReportViewProps) {
+export function SchemeReportView({ scheme, onSave, saving = false, saved = false }: SchemeReportViewProps) {
   return (
     <div>
       <div className="sec-title">Step 4 · 施工智能配置方案报告</div>
@@ -18,6 +21,10 @@ export function SchemeReportView({ scheme, onSave }: SchemeReportViewProps) {
             <div className="mt-0.5 text-[11.5px] text-ink-3">
               编号: <b className="text-ink">{scheme.no}</b> · 时间: {scheme.time}
             </div>
+            {scheme.algorithm && <div className="mt-1 text-xs text-ink-3">
+              算法：{scheme.algorithm.id} · {scheme.algorithm.version}
+              {scheme.algorithm.reference && <span className="ml-2 text-warn">参考规则演示 · 未经工程标定</span>}
+            </div>}
           </div>
           <div className="text-right text-[12px] text-ink-3">
             <div>
@@ -50,10 +57,7 @@ export function SchemeReportView({ scheme, onSave }: SchemeReportViewProps) {
                   <td className="border border-white/[0.06] px-2.5 py-2 text-center text-ink">
                     {row.process}
                   </td>
-                  <td
-                    className="border border-white/[0.06] px-2.5 py-2 text-center text-ink"
-                    dangerouslySetInnerHTML={{ __html: row.spec }}
-                  />
+                  <td className="border border-white/[0.06] px-2.5 py-2 text-center text-ink">{row.spec}</td>
                   <td className="border border-white/[0.06] px-2.5 py-2 text-center text-ink">
                     {row.quantity}
                   </td>
@@ -66,15 +70,16 @@ export function SchemeReportView({ scheme, onSave }: SchemeReportViewProps) {
           </table>
         </div>
 
-        <div className="flex justify-end">
-          <button
+        {onSave && <div className="flex justify-end">
+          <Button
             type="button"
             onClick={onSave}
+            disabled={saving || saved}
             className="inline-flex items-center justify-center gap-1.5 rounded-[7px] bg-gradient-to-br from-[#1fb8a4] to-[#0e8f96] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_3px_14px_rgba(45,212,191,.22)] transition-transform hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(45,212,191,.35)]"
           >
-            保存至方案与决策台账
-          </button>
-        </div>
+            {saving ? '正在保存…' : saved ? '已保存至台账' : '保存至方案与决策台账'}
+          </Button>
+        </div>}
       </div>
     </div>
   );

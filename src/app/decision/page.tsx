@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DecisionPlaceholder } from '@/components/decision/decision-placeholder';
 import { DecisionLoadingModal } from '@/components/decision/decision-loading-modal';
@@ -11,10 +11,15 @@ import { SchemeReportView } from '@/components/decision/scheme-report';
 import { SupportDesign } from '@/components/decision/support-design';
 import { TopBar } from '@/components/overview/top-bar';
 import { useDecision, type DecisionStep } from '@/hooks/use-decision';
-import { getArchMechanism } from '@/lib/decision-engine';
+import { saveDecisionScheme } from '@/lib/api';
+import { DECISION_CHANNEL } from '@/lib/decision-adapter';
+import type { SaveDecisionResult } from '@/lib/types';
 
 export default function DecisionPage() {
   const d = useDecision();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saved, setSaved] = useState<{ key: string; result: SaveDecisionResult } | null>(null);
 
   // 各步骤区块的滚动锚点
   const workbenchRef = useRef<HTMLDivElement>(null);
@@ -33,13 +38,22 @@ export default function DecisionPage() {
     if (s === 4) scrollTo(schemeRef.current);
   };
 
-  const mechanism = getArchMechanism(d.params.grade);
 
-  const handleSave = () => {
-    // TODO: Python 后端就绪后，调用入库接口（POST /api/decision/save-scheme）。
-    toast.success('方案已保存至方案与决策台账', {
-      description: `报告编号 ${d.scheme?.no ?? ''}`,
-    });
+  const handleSave = async () => {
+    const request = d.saveRequest;
+    if (!request || savingRef.current || saved?.key === request.requestKey) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await saveDecisionScheme(request);
+      setSaved({ key: request.requestKey, result });
+      toast.success('方案已保存至方案与决策台账', { description: `报告编号 ${result.report.no}` });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : '方案未保存，请重试');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -63,6 +77,15 @@ export default function DecisionPage() {
           </div>
         </div>
 
+        {d.error && <div role="alert" className="mb-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          {d.error}
+        </div>}
+        <div className="mb-3 text-xs text-ink-3">
+          {d.algorithm || d.meta.algorithm ? `${(d.algorithm ?? d.meta.algorithm)?.id} · ${(d.algorithm ?? d.meta.algorithm)?.version}` : '正在连接决策服务…'}
+          {(d.algorithm ?? d.meta.algorithm)?.reference && <span className="ml-2 text-warn">参考规则演示 · 未经工程标定</span>}
+          {!d.metaReady && <button type="button" className="ml-3 underline" onClick={d.retryMeta}>重新连接后端</button>}
+        </div>
+
         <FlowBar
           step={d.step}
           onJump={handleJump}
@@ -75,6 +98,9 @@ export default function DecisionPage() {
 
         <div ref={workbenchRef} className="scroll-mt-20">
           <DecisionWorkbench
+            meta={d.meta}
+            mileage={d.mileage}
+            ready={d.metaReady}
             mode={d.mode}
             workface={d.workface}
             params={d.params}
@@ -111,15 +137,18 @@ export default function DecisionPage() {
         {d.step >= 3 && (
           <div ref={supportRef} className="scroll-mt-20">
             <SupportDesign
-              mechanism={mechanism}
+              mechanism={d.mechanism ?? { height: "—", release: "—", closeTime: "—" }}
+              checking={d.checking}
+              reporting={d.reporting}
+              reference={d.algorithm?.reference ?? true}
               support={d.support}
               safety={d.safety}
               adjusted={d.adjusted}
               onAdjust={d.adjustSupport}
               onRecheck={d.recheck}
               onBack={d.backToMethod}
-              onGenerate={() => {
-                d.buildScheme();
+              onGenerate={async () => {
+                await d.buildScheme();
                 setTimeout(() => scrollTo(schemeRef.current), 80);
               }}
             />
@@ -128,7 +157,13 @@ export default function DecisionPage() {
 
         {d.step >= 4 && d.scheme && (
           <div ref={schemeRef} className="scroll-mt-20">
-            <SchemeReportView scheme={d.scheme} onSave={handleSave} />
+            <SchemeReportView
+              scheme={saved && saved.key === d.saveRequest?.requestKey ? saved.result.report : d.scheme}
+              onSave={DECISION_CHANNEL === 'backend' ? handleSave : undefined}
+              saving={saving}
+              saved={saved?.key === d.saveRequest?.requestKey}
+            />
+            {DECISION_CHANNEL === 'mock' && <p className="mt-2 text-xs text-ink-3">离线演示仅提供预览；切换 Python 通道并重新计算后可保存。</p>}
           </div>
         )}
       </main>

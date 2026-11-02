@@ -163,3 +163,7 @@ Desktop.ini
 # Misc
 .coze-logs
 .codegraph/
+
+# Python backend caches (uses the existing Python interpreter)
+backend/.venv/
+backend/.pytest_cache/

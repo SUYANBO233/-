@@ -1,15 +1,14 @@
 import { schemeHistoryData } from "@/data/scheme";
-import type { HistoryRecord, SchemeHistoryData } from "@/lib/types";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseClient, hasSupabaseCredentials, loadEnv } from "@/storage/database/supabase-client";
+import { advanceToMeters, durationToMinutes } from "@/lib/measurements";
+import type { HistoryRecord, SchemeHistoryData, SchemeReport } from "@/lib/types";
+import { getSupabaseClient, hasSupabaseCredentials } from "@/storage/database/supabase-client";
 
 /**
  * 后端服务层 —— 方案报告与历史决策台账业务逻辑（Supabase 持久化）。
  *
- * - 读取：scheme_history 表（首次为空时以 src/data/scheme.ts 惰性种籽入库）
+ * - 读取：scheme_history 表；种子数据通过 pnpm db:seed 显式导入
  * - 写入：新增 / 批量导入 均落库，刷新不丢失
  */
-loadEnv();
 
 interface SchemeHistoryRow {
   id: number;
@@ -24,6 +23,9 @@ interface SchemeHistoryRow {
   advance: string;
   detail: string;
   custom: boolean;
+  source?: string;
+  scheme_report_id?: string | null;
+  decision_run_id?: string | null;
 }
 
 function toRecord(row: SchemeHistoryRow): HistoryRecord {
@@ -39,48 +41,32 @@ function toRecord(row: SchemeHistoryRow): HistoryRecord {
     score: Number(row.score),
     advance: row.advance,
     detail: row.detail,
+    source: row.source,
+    schemeReportId: row.scheme_report_id ?? undefined,
+    decisionRunId: row.decision_run_id ?? undefined,
   };
   // 用户新增行 custom=true
   if (row.custom) record.custom = true;
   return record;
 }
 
-async function ensureSeeded(client: SupabaseClient): Promise<void> {
-  {
-    const rows = schemeHistoryData.records.map((r) => ({
-      time: r.time,
-      face: r.face,
-      start_mile: r.startMile,
-      end_mile: r.endMile,
-      rock: r.rock,
-      method: r.method,
-      type: r.type,
-      score: String(r.score),
-      advance: r.advance,
-      detail: r.detail,
-      custom: false,
-    }));
-    const { error: insertErr } = await client
-      .from("scheme_history")
-      .upsert(rows, { onConflict: "time,start_mile,end_mile", ignoreDuplicates: true });
-    if (insertErr) throw insertErr;
-  }
-}
-
-/** 查询台账列表（首次读取自动种籽入库） */
+/** 查询台账列表，读取无副作用 */
 export async function listSchemeHistory(): Promise<SchemeHistoryData> {
   // 未配置数据库时提供内置台账供本地浏览；写操作仍需数据库。
-  if (!hasSupabaseCredentials()) return structuredClone(schemeHistoryData);
+  if (!hasSupabaseCredentials()) return {
+    ...structuredClone(schemeHistoryData),
+    records: schemeHistoryData.records.map((row) => ({ ...row, source: 'seed' })),
+  };
 
   const client = getSupabaseClient();
-  await ensureSeeded(client);
   const { data, error } = await client
     .from("scheme_history")
     .select("*")
     .order("time", { ascending: true });
   if (error) throw error;
   const records = (data ?? []).map((r) => toRecord(r as SchemeHistoryRow));
-  return { ...schemeHistoryData, records };
+  const faces = ["全部工作面", ...new Set(records.map((record) => record.face))];
+  return { ...schemeHistoryData, faces, records };
 }
 
 /** 新增单条决策记录，落库返回完整记录 */
@@ -91,6 +77,9 @@ export async function createSchemeHistory(
   const { data, error } = await client
     .from("scheme_history")
     .insert({
+      source: "manual",
+      advance_m: advanceToMeters(input.advance),
+      cycle_duration_minutes: durationToMinutes(input.detail),
       time: input.time,
       face: input.face,
       start_mile: input.startMile,
@@ -115,6 +104,9 @@ export async function importSchemeHistory(
 ): Promise<number> {
   const client = getSupabaseClient();
   const rows = list.map((r) => ({
+    source: "import",
+    advance_m: advanceToMeters(r.advance),
+    cycle_duration_minutes: durationToMinutes(r.detail),
     time: r.time,
     face: r.face,
     start_mile: r.startMile,
@@ -138,4 +130,11 @@ export async function deleteSchemeHistory(id: number): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await client.from("scheme_history").delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function getSchemeReport(id: string): Promise<SchemeReport | null> {
+  const client = getSupabaseClient();
+  const { data, error } = await client.from('scheme_report').select('content').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? data.content as SchemeReport : null;
 }
