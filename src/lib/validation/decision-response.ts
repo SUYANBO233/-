@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { evaluationContextSchema,criterionSchema,responseResultSchema,evaluationItemSchema } from '../response';
 import { templateSchema, observationSchema } from '../decision-catalog';
 import type { AlgorithmInfo, DecisionMeta, InferMethodsResult, SafetyAssessment, SchemeReport, SupportDesignResult } from '@/lib/types';
 
@@ -19,6 +20,7 @@ const supportSchema = z.object({
 const supportsSchema = z.array(supportSchema).length(4).refine((items) => new Set(items.map((item) => item.key)).size === 4, '支护构件不能重复');
 export const mechanismSchema = z.object({ height: z.string(), release: z.string(), closeTime: z.string() });
 export const safetySchema = z.object({
+  response:responseResultSchema.nullable().optional(),items:z.array(evaluationItemSchema).optional(),criteriaSnapshot:z.array(criterionSchema).optional(),isTest:z.boolean().optional(),
   status:z.enum(['reference','unavailable','satisfied','unsatisfied']).optional(),scope:z.string().optional(),
   score: z.number().min(0).max(100).nullable(), tag: z.string(), reason: z.string(),
   radar: z.object({ labels: z.array(z.string()).min(1), data: z.array(z.number().min(0).max(100)).min(1) })
@@ -27,6 +29,7 @@ export const safetySchema = z.object({
 }) satisfies z.ZodType<SafetyAssessment>;
 const reportRowSchema = z.object({ process: z.string(), spec: z.string(), quantity: z.string(), basis: z.string() });
 export const schemeReportSchema = z.object({
+  evaluation:safetySchema.nullable().optional(),baselineEvaluation:safetySchema.nullable().optional(),
   no: z.string().min(1), time: z.string(), mile: z.string(), grade: z.string(), method: z.string(),
   rows: z.array(reportRowSchema).min(1), algorithm: algorithmInfoSchema.optional(),
 }) satisfies z.ZodType<SchemeReport>;
@@ -50,12 +53,13 @@ export function parseDecisionResponse<T>(schema: z.ZodType<T>, data: unknown): T
 }
 
 export const decisionPayloadSchema = z.object({
+  isTest:z.boolean().optional(),
   requestKey: z.uuid(), workface: z.string(), mode: z.enum(['joint','manual']),
   channel: z.enum(['mock','real']), algorithmVersion: z.string(), source: z.enum(['simulation','algorithm']),
-  input: z.object({ params: z.record(z.string(), z.unknown()), mileage: z.string(), workface: z.string(),origin:z.record(z.string(),z.unknown()).nullable().optional() }),
+  input: z.object({ evaluationContext:evaluationContextSchema.nullable().optional(),params: z.record(z.string(), z.unknown()), mileage: z.string(), workface: z.string(),origin:z.record(z.string(),z.unknown()).nullable().optional() }),
   candidates: z.array(methodSchema).min(1),
   revisions: z.array(z.object({ methodKey: z.enum(['full','bench','core']), support: supportsSchema, safety: safetySchema, reason: z.string(),template:templateSchema.nullable().optional(),rules:z.array(z.record(z.string(),z.unknown())).optional() })).min(1),
-  report: z.object({ schemaVersion:z.number().optional(),mile: z.string(), grade: z.string(), method: z.string(), rows: z.array(reportRowSchema).min(1), algorithm: algorithmInfoSchema }),
+  report: z.object({ evaluation:safetySchema.nullable().optional(),baselineEvaluation:safetySchema.nullable().optional(),schemaVersion:z.number().optional(),mile: z.string(), grade: z.string(), method: z.string(), rows: z.array(reportRowSchema).min(1), algorithm: algorithmInfoSchema }),
 });
 
 export const synchronizeSchema = z.object({

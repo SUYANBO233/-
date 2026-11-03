@@ -2,6 +2,7 @@ import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { PGlite } from '@electric-sql/pglite';
 import { z } from 'zod';
+import { criterionSchema } from '@/lib/response';
 import { migrateDatabase, type SqlClient } from '@/storage/database/migrate';
 import { getSupabaseClient, getSupabaseServiceRoleKey, hasSupabaseCredentials } from '@/storage/database/supabase-client';
 import { catalogImportSchema, observationSchema, ruleSchema, templateSchema, type CatalogImport } from '@/lib/decision-catalog';
@@ -55,7 +56,7 @@ export async function readDecisionCatalog() {
     if (error) throw new CatalogStoreError('读取一致性资料快照失败，请先执行最新数据库迁移');
     raw=data;
   }
-  const rows=z.object({ rules:z.array(z.record(z.string(),z.unknown())),templates:z.array(z.record(z.string(),z.unknown())),
+  const rows=z.object({ criteria:z.array(criterionSchema).default([]),rules:z.array(z.record(z.string(),z.unknown())),templates:z.array(z.record(z.string(),z.unknown())),
     observations:z.array(z.record(z.string(),z.unknown())),faces:z.array(z.record(z.string(),z.unknown())) }).parse(raw);
   const { rules,templates,observations,faces }=rows;
   const workfaces = faces.map((row) => faceRowSchema.parse(row));
@@ -74,16 +75,20 @@ export async function readDecisionCatalog() {
     if (!face) throw new CatalogStoreError('采集记录引用了不存在的工作面');
     return observationSchema.parse({ id:o.id, workface:face.code, mileage:chainage(Number(o.chainage_m)), observedAt:new Date(o.observed_at).toISOString(), params:o.params, source:o.source, testBatchId:o.test_batch_id });
   });
-  return { methods: CONSTRUCTION_METHODS, supportByGrade: {}, rules: rulesData, templates: templatesData, observations: observationData,
+  return { criteria:rows.criteria,methods: CONSTRUCTION_METHODS, supportByGrade: {}, rules: rulesData, templates: templatesData, observations: observationData,
     meta: { workfaces:workfaces.map((face) => ({ value:face.code,label:face.name,grade:'IV' as const })),
       mileages:[...new Set(observationData.map((item) => item.mileage))].sort().map((mile) => ({ value:mile,label:mile,mile })) },
     dataSource:isLocalTestCatalog() ? 'local-test' : 'database' };
 }
-export async function catalogRpc(name: 'publish_decision_catalog' | 'set_decision_catalog_enabled', args: Record<string, unknown>): Promise<unknown> {
+export async function catalogRpc(name: 'publish_decision_catalog' | 'set_decision_catalog_enabled' | 'publish_evaluation_criterion' | 'set_evaluation_criterion_enabled', args: Record<string, unknown>): Promise<unknown> {
   try {
     if (isLocalTestCatalog()) {
       const db = await getLocalTestDatabase();
-      const result = name === 'publish_decision_catalog'
+      const result = name === 'publish_evaluation_criterion'
+        ? await db.query('SELECT public.publish_evaluation_criterion($1::jsonb) AS result',[JSON.stringify(args.p_definition)])
+        : name === 'set_evaluation_criterion_enabled'
+        ? await db.query('SELECT public.set_evaluation_criterion_enabled($1,$2,$3) AS result',[args.p_code,args.p_version,args.p_enabled])
+        : name === 'publish_decision_catalog'
         ? await db.query('SELECT public.publish_decision_catalog($1::jsonb) AS result', [JSON.stringify(args.p_bundle)])
         : await db.query('SELECT public.set_decision_catalog_enabled($1,$2,$3,$4) AS result', [args.p_kind,args.p_code,args.p_version,args.p_enabled]);
       return result.rows[0];

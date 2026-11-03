@@ -13,6 +13,7 @@ import { TopBar } from '@/components/overview/top-bar';
 import { useDecision, type DecisionStep } from '@/hooks/use-decision';
 import { saveDecisionScheme } from '@/lib/api';
 import { DECISION_CHANNEL } from '@/lib/decision-adapter';
+import { Input } from '@/components/ui/input';
 import type { SaveDecisionResult } from '@/lib/types';
 
 export default function DecisionPage() {
@@ -82,9 +83,16 @@ export default function DecisionPage() {
         </div>}
         <div className="mb-3 text-xs text-ink-3">
           {d.algorithm || d.meta.algorithm ? `${(d.algorithm ?? d.meta.algorithm)?.id} · ${(d.algorithm ?? d.meta.algorithm)?.version}` : '正在连接决策服务…'}
-          {(d.algorithm ?? d.meta.algorithm)?.reference && <span className="ml-2 text-warn">规则/测试资料 · 未接入力学评价</span>}
+          {(d.algorithm ?? d.meta.algorithm)?.reference && <span className="ml-2 text-warn">规则/测试资料 · 待工程复核</span>}
           {!d.metaReady && <button type="button" className="ml-3 underline" onClick={d.retryMeta}>重新连接后端</button>}
         </div>
+
+        <section aria-label="评价口径" className="mb-4 flex flex-wrap items-end gap-4 rounded border border-line bg-panel p-3 text-xs">
+          <label>评价断面标识<Input aria-label="评价断面标识" value={d.evaluationContext.sectionId} onChange={(event) => d.changeEvaluationContext({ ...d.evaluationContext,sectionId:event.target.value })} /></label>
+          <label>评价阶段<select aria-label="评价阶段" className="ml-2 rounded border border-line bg-panel p-2" value={d.evaluationContext.stage} onChange={(event) => d.changeEvaluationContext({ ...d.evaluationContext,stage:event.target.value==='initial-support' ? 'initial-support':'after-excavation' })}><option value="initial-support">初支完成后</option><option value="after-excavation">开挖后</option></select></label>
+          <label>位移基准<select aria-label="位移基准" className="ml-2 rounded border border-line bg-panel p-2" value={d.evaluationContext.displacementReference} onChange={(event) => d.changeEvaluationContext({ ...d.evaluationContext,displacementReference:event.target.value==='total' ? 'total':'since-excavation' })}><option value="since-excavation">自开挖起增量</option><option value="total">总位移</option></select></label>
+          <span className="text-ink-3">修改口径后需重新匹配；模型未覆盖的口径不会自动套用。</span>
+        </section>
 
         <FlowBar
           step={d.step}
@@ -151,6 +159,7 @@ export default function DecisionPage() {
               reference={d.algorithm?.reference ?? true}
               support={d.support}
               safety={d.safety}
+              baselineSafety={d.baselineSafety}
               adjusted={d.adjusted}
               onAdjust={d.adjustSupport}
               onRecheck={d.recheck}

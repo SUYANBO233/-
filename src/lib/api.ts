@@ -230,6 +230,7 @@ export async function fetchDecisionMeta(): Promise<DecisionMeta> {
 }
 
 export interface InferMethodsRequest {
+  evaluationContext?: import('./response').EvaluationContext | null;
   params: Partial<GeoParams>;
   algorithm?: import('./types').AlgorithmInfo;
   observationId?: string | null;
@@ -240,8 +241,8 @@ export interface InferMethodsRequest {
 }
 
 function decisionRequest(request: InferMethodsRequest) {
-  const { params,workface,mileage,algorithm,observationId,manualReason,template }=request;
-  return { params,workface,mileage,algorithm,observationId,manualReason,template };
+  const { params,workface,mileage,algorithm,observationId,manualReason,template,evaluationContext }=request;
+  return { params,workface,mileage,algorithm,observationId,manualReason,template,evaluationContext };
 }
 
 export async function inferMethods(request: InferMethodsRequest): Promise<InferMethodsResult> {

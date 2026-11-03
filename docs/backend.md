@@ -167,3 +167,9 @@ Supabase 持久化仍需按 [数据库部署说明](database.md) 配置并迁移
 完整模板通过 code/version 选择，并贯穿重新检查、报告和保存重放。保存重放校验规则/模板摘要，版本变化返回 409；缺少旧版本时不会改用新版本。D1 先采用冲突后重新匹配，尚不提供跨版本重算页面。
 
 维护接口位于 `/api/knowledge/decision-catalog`，内部读取接口位于 `/api/internal/decision-catalog`。后者需要 `X-Catalog-Key`，不会通过浏览器的决策代理公开。完整运行、临时数据与浏览器测试见 [d1.md](d1.md)。
+
+## D2 响应提供器与分项评价
+
+`DECISION_RESPONSE_FACTORY` 独立于工法/支护算法，默认 `app.algorithms.response.base:create_unavailable`；通过 ResponseProvider 接入真实模型，无需替换页面。`pnpm dev:d2` 才显式加载合成提供器及测试判据。输入含当前完整支护、工作面/里程和 evaluationContext（sectionId、stage、displacementReference），输出带模型版本、输入摘要、单位、来源与缺项。默认 5 秒等待、4 个并发任务；远程适配器还须自行设置网络/计算超时。
+
+判据与模型版本进入算法摘要，修改后后续步骤返回 409；服务端重放每次调整，在 schemaVersion=3 报告与 revision 的 safety_snapshot 中保存响应、判据、初始/当前评价与来源。没有工程模型时不可当作工程安全评价。实际配置、适用范围、公式及网页体验见 [D2 说明](d2.md)。

@@ -1,3 +1,4 @@
+import type { EvaluationContext, ResponseResult, EvaluationItem, EvaluationCriterion } from './response';
 /**
  * 系统总览板块的领域类型定义。
  * 该类型同时作为「前端组件数据契约」与「后端接口返回体」，
@@ -170,6 +171,10 @@ export interface SafetyRadar {
 
 /** 初期支护安全度评估结果 */
 export interface SafetyAssessment {
+  response?: ResponseResult | null;
+  items?: EvaluationItem[];
+  criteriaSnapshot?: EvaluationCriterion[];
+  isTest?: boolean;
   status?: 'reference' | 'unavailable' | 'satisfied' | 'unsatisfied';
   scope?: string;
   algorithm?: AlgorithmInfo;
@@ -190,6 +195,8 @@ export interface SchemeRow {
 
 /** 完整施工配置方案报告 */
 export interface SchemeReport {
+  evaluation?: SafetyAssessment | null;
+  baselineEvaluation?: SafetyAssessment | null;
   algorithm?: AlgorithmInfo;
   no: string;
   time: string;
@@ -211,6 +218,7 @@ export interface DecisionRevisionInput {
 }
 
 export interface SaveDecisionRequest {
+  evaluationContext?: EvaluationContext | null;
   observationId?: string | null;
   algorithm?: AlgorithmInfo;
   requestKey: string;

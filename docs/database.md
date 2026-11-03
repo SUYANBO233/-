@@ -102,3 +102,9 @@ pnpm lint:build
 004/005 迁移提供 `publish_decision_catalog(jsonb)` 和 `set_decision_catalog_enabled(...)`：发布为整批事务；同编码同版本内容不可覆盖；新版本启用时停用该编码的其他版本。旧的自由文本映射和未补齐结构化规格的模板不会自动进入新算法。
 
 `scheme_history.score` 允许空值；D1 的评价状态为 unavailable，旧分数不改写。调整版本另存完整模板和规则快照；采集记录引用由服务端验证后关联，报告内容保留当时版本。实际 Supabase 角色、RLS、PostgREST 仍需在部署环境验证。
+
+## D2 追加迁移 008
+
+新增第 15 张业务表 `evaluation_criterion`，保存不可覆盖的编码/版本、启停与完整判据 JSON。发布和启停由事务函数执行，同编码只启用一个版本；匿名角色无执行权限。`read_decision_catalog()` 同一 SQL 快照读取规则、模板、采集记录和判据。`save_decision()` 保留无评分情况的 satisfied/unsatisfied/unavailable 评价状态，报告 JSON 与 safety_snapshot 保存完整响应/判据/口径。旧报告及旧分数仍兼容。
+
+本地 `dev:d2` 自动迁移并初始化明确标记的合成判据，正式库仍需显式执行迁移；没有验证实际 Supabase。响应案例尚无真实资料，24 组测试用例在版本化测试文件中，不冒充工程样本表。

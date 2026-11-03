@@ -167,4 +167,12 @@ page.tsx (server，前端页面)
 - 内部资料读取为认证的 `/api/internal/decision-catalog`；维护为 `/api/knowledge/decision-catalog`。数据库一致性快照由 `read_decision_catalog()` 提供，不用多次独立读取伪装同一版本。
 - 每次请求冻结资料摘要；后续步骤版本不同返回 409 重新匹配。发布为事务，同编码版本内容不可覆盖，启用新版本停用旧版本。
 - 缺失工程参数保持缺失，规则只使用已提供的合法字段；不把缺失值转为零。响应模型未接入时返回 unavailable 和空分数。
-- 迁移只追加；当前业务表 14 张。完整运行方法见 `docs/d1.md`，浏览器测试 `pnpm test:d1:browser` 使用独立本地目录与测试端口。
+- 迁移只追加；当前业务表 15 张。完整运行方法见 `docs/d1.md`，浏览器测试 `pnpm test:d1:browser` 使用独立本地目录与测试端口。
+
+## D2 响应与变形评价
+
+- `pnpm dev:d2` 显式启用隔离 PGlite 与测试响应，默认目录 `.local/decision-d2-test`。`dev:d1` 关闭测试响应；正式模式默认模型未接入，禁止自动回退。
+- 响应协议与工厂位于 `backend/app/algorithms/response/base.py`，通过 `DECISION_RESPONSE_FACTORY` 替换；完整当前支护、工程输入和断面/阶段/位移基准共同进入输入摘要。测试提供器仅显式 local-test + allow-test 配置可加载。
+- 判据位于 `evaluation_criterion`，单位/断面类型/阶段/基准兼容后执行上限、下限或闭区间比较；任何必需项不满足则总体不满足，缺项保留，无必需项不能判通过。只称变形控制评价，不输出虚构安全分数。
+- 模型/manifest 与判据进入版本冻结；报告 schemaVersion=3 保存初始/当前响应、完整判据与评价，旧报告兼容。参数修改清除当前结果，重算失败保留输入，迟到响应不得覆盖新编辑。
+- 使用与替换见 `docs/d2.md`，浏览器 `pnpm test:d2:browser` 使用 `.local/d2-browser`。真实 Supabase 和工程有效性尚未验证。

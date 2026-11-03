@@ -3,18 +3,13 @@ from typing import Annotated, Literal
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import Field, TypeAdapter, model_validator
 
 RockGrade = Literal['I', 'II', 'III', 'IV', 'V', 'VI']
 MethodKey = Literal['full', 'bench', 'core']
 ComponentKey = Literal['steel', 'shot', 'anchor', 'advance']
-Number = Annotated[float, Field(allow_inf_nan=False)]
-
-
-class Contract(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True,
-                              extra='forbid', allow_inf_nan=False, strict=True)
+from app.models_base import Contract, Number
+from app.response_models import EvaluationContext, ResponseResult, EvaluationItem, EvaluationCriterion
 
 
 class AlgorithmInfo(Contract):
@@ -115,6 +110,10 @@ class SafetyRadar(Contract):
 
 
 class SafetyAssessment(Contract):
+    response: ResponseResult | None = None
+    items: list[EvaluationItem] = Field(default_factory=list)
+    criteria_snapshot: list[EvaluationCriterion] = Field(default_factory=list)
+    is_test: bool = False
     status: Literal["reference", "unavailable", "satisfied", "unsatisfied"] = "reference"
     scope: str = "参考评分"
     score: Number | None = Field(default=None, ge=0, le=100)
@@ -132,6 +131,8 @@ class SchemeRow(Contract):
 
 
 class SchemeReport(Contract):
+    evaluation: SafetyAssessment | None = None
+    baseline_evaluation: SafetyAssessment | None = None
     no: str
     time: str
     mile: str
@@ -165,6 +166,7 @@ class TemplateReference(Contract):
 
 
 class InferRequest(Contract):
+    evaluation_context: EvaluationContext | None = None
     algorithm: AlgorithmInfo | None = None
     observation_id: str | None = None
     manual_reason: str = Field(default="", max_length=500)
@@ -230,6 +232,7 @@ class RevisionInput(Contract):
 
 
 class SaveDecisionRequest(Contract):
+    evaluation_context: EvaluationContext | None = None
     observation_id: str | None = None
     request_key: str = Field(min_length=36, max_length=36)
     mode: Literal['joint', 'manual']
@@ -256,6 +259,7 @@ class RevisionSnapshot(Contract):
 
 
 class InputSnapshot(Contract):
+    evaluation_context: EvaluationContext | None = None
     origin: dict[str, object] | None = None
     params: GeoParams | dict[str,object]
     mileage: str
@@ -263,7 +267,9 @@ class InputSnapshot(Contract):
 
 
 class ReportSnapshot(Contract):
-    schema_version: int = 2
+    evaluation: SafetyAssessment | None = None
+    baseline_evaluation: SafetyAssessment | None = None
+    schema_version: int = 3
     mile: str
     grade: str
     method: str
@@ -272,6 +278,7 @@ class ReportSnapshot(Contract):
 
 
 class DecisionPayload(Contract):
+    is_test: bool = False
     request_key: str
     workface: str
     mode: Literal['joint', 'manual']
@@ -454,6 +461,7 @@ class RulePreviewRequest(Contract):
 
 
 class Catalog(Contract):
+    criteria: list[EvaluationCriterion] = Field(default_factory=list)
     methods: list[ConstructionMethod] = Field(min_length=1)
     meta: DecisionMeta
     support_by_grade: dict[RockGrade, list[SupportComponent]]

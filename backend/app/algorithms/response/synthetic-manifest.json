@@ -1,0 +1,80 @@
+{
+  "id": "synthetic-deformation",
+  "version": "1.0.0",
+  "testBatchId": "d2_synthetic_v1",
+  "description": "软件测试专用敏感性算术，无工程物理意义，不是 FLAC3D 或训练模型",
+  "requiredParams": [
+    "grade",
+    "section",
+    "depth",
+    "elastic",
+    "stressV",
+    "stressH"
+  ],
+  "geoRanges": {
+    "depth": [
+      100,
+      1200
+    ],
+    "elastic": [
+      0.1,
+      50
+    ],
+    "stressV": [
+      0.1,
+      100
+    ],
+    "stressH": [
+      0.1,
+      100
+    ]
+  },
+  "supportRanges": {
+    "steel": [
+      30,
+      240
+    ],
+    "shot": [
+      10,
+      50
+    ],
+    "anchor": [
+      1,
+      6
+    ],
+    "advance": [
+      20,
+      80
+    ]
+  },
+  "baseGeo": {
+    "depth": 620,
+    "elastic": 2.85,
+    "stressV": 21.5,
+    "stressH": 13.2
+  },
+  "baseValues": {
+    "steel": 80,
+    "shot": 22,
+    "anchor": 3,
+    "advance": 40
+  },
+  "baseMetrics": {
+    "settlement": 8,
+    "convergence": 6
+  },
+  "partialDepthM": 900,
+  "formula": "G=(depth/620+2.85/elastic+stressV/21.5+stressH/13.2)/4; S=(steel/80+22/shot+3/anchor+advance/40)/4; response=baseMetric*G*S; round to 6 decimals",
+  "units": {
+    "depth": "m",
+    "elastic": "GPa",
+    "stressV": "MPa",
+    "stressH": "MPa",
+    "steel": "cm",
+    "shot": "cm",
+    "anchor": "m",
+    "advance": "cm",
+    "settlement": "mm",
+    "convergence": "mm"
+  }
+}

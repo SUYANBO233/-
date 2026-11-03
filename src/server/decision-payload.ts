@@ -7,6 +7,7 @@ export async function buildDecisionPayload(input: SaveDecisionRequest) {
   const data = await decisionBackendJson('build-snapshot', input);
   const payload = parseDecisionResponse(decisionPayloadSchema, data);
   if (payload.requestKey !== input.requestKey || payload.workface !== input.workface || payload.mode !== input.mode
+    || (['sectionId','stage','displacementReference'] as const).some((key) => payload.input.evaluationContext?.[key] !== input.evaluationContext?.[key])
     || payload.input.workface !== input.workface || payload.input.mileage !== input.mileage || payload.report.mile !== input.mileage
     || Object.entries(input.params).some(([key, value]) => payload.input.params[key] !== value)
     || payload.revisions.length !== input.revisions.length
@@ -16,8 +17,8 @@ export async function buildDecisionPayload(input: SaveDecisionRequest) {
   }
   const algorithm = payload.report.algorithm;
   if (payload.algorithmVersion !== `${algorithm.id}:${algorithm.version}`
-    || payload.source !== (algorithm.reference ? 'simulation' : 'algorithm')
-    || payload.channel !== (algorithm.reference ? 'mock' : 'real')) {
+    || payload.source !== ((payload.isTest ?? algorithm.reference) ? 'simulation' : 'algorithm')
+    || payload.channel !== (algorithm.capabilities?.includes('deformation-evaluation') ? 'real':algorithm.reference ? 'mock':'real')) {
     throw new DecisionBackendError('算法快照来源标记不一致，方案未保存', 502);
   }
   return payload;

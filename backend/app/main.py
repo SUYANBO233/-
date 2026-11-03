@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 
 from app.algorithms.base import AlgorithmInputError, DecisionAlgorithm
 from app.algorithms.registry import load_algorithm
+from app.algorithms.configurable import ConfigurableAlgorithm
+from app.algorithms.response.base import load_provider
 from app.api.decision import router
 from app.config import Settings
 from app.repositories.catalog import CatalogRepository, JsonCatalogRepository, HttpCatalogRepository, FrozenCatalogRepository, CatalogUnavailable
@@ -27,9 +29,14 @@ def create_app(settings: Settings | None = None, *, algorithm: DecisionAlgorithm
         # Validate explicit plugins at startup, while the database bridge is loaded per request.
         if config.algorithm_factory != 'app.algorithms.configurable:create_algorithm':
             load_algorithm(config.algorithm_factory,catalog)
+        if config.algorithm_factory == 'app.algorithms.configurable:create_algorithm' and algorithm is None:
+            load_provider(config.response_factory,config.allow_test_responses)
         def make_service() -> DecisionService:
             snapshot = FrozenCatalogRepository(catalog.read())
-            return DecisionService(algorithm or load_algorithm(config.algorithm_factory,snapshot),snapshot)
+            selected=algorithm
+            if selected is None:
+                selected=ConfigurableAlgorithm(snapshot,load_provider(config.response_factory,config.allow_test_responses),config.allow_test_responses,config.response_timeout) if config.algorithm_factory=='app.algorithms.configurable:create_algorithm' else load_algorithm(config.algorithm_factory,snapshot)
+            return DecisionService(selected,snapshot)
         application.state.settings = config
         application.state.make_decision_service = make_service
         yield

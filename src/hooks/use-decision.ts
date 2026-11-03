@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_EVALUATION_CONTEXT, type EvaluationContext } from '@/lib/response';
 import { DEFAULT_GEO_PARAMS_IV, DECISION_META } from '@/data/decision';
 import { synchronizeDecision, fetchSupportOptions } from '@/lib/api';
 import { geoParamsSchema } from '@/lib/validation/geo';
@@ -17,6 +18,7 @@ export type DecisionLoadingPhase = 'method' | 'support' | null;
 export interface DecisionState {
   step: DecisionStep; methods: MethodMatch[]; selectedMethodKey: string | null;
   support: SupportComponent[]; safety: SafetyAssessment | null; mechanism: ArchMechanism | null;
+  baselineSafety: SafetyAssessment | null;
   algorithm: AlgorithmInfo | null; scheme: SchemeReport | null;
   adjusted: Set<SupportComponent['key']>; revisions: DecisionRevisionInput[];
   saveRequest: SaveDecisionRequest | null; needsCheck: boolean;
@@ -24,7 +26,7 @@ export interface DecisionState {
 }
 function initialState(): DecisionState {
   return { step: 1, methods: [], selectedMethodKey: null, support: [], safety: null, mechanism: null,
-    algorithm: null, scheme: null, adjusted: new Set(), revisions: [], saveRequest: null, needsCheck: false, template:null, templateOptions:[], manualReason:'' };
+    baselineSafety:null,algorithm: null, scheme: null, adjusted: new Set(), revisions: [], saveRequest: null, needsCheck: false, template:null, templateOptions:[], manualReason:'' };
 }
 function revision(methodKey: string, support: SupportComponent[], reason: string, template: TemplateReference | null, manualReason: string): DecisionRevisionInput {
   if (methodKey !== 'full' && methodKey !== 'bench' && methodKey !== 'core') throw new Error('未知工法');
@@ -45,7 +47,7 @@ function sameAlgorithm(left: AlgorithmInfo | null, right: AlgorithmInfo | undefi
 }
 
 export function useDecision() {
-  const [input, setInput] = useState({ mode: 'joint' as DecisionMode, workface: '', mileage: 'K3601+200', params: DEFAULT_GEO_PARAMS_IV });
+  const [input, setInput] = useState({ evaluationContext:DEFAULT_EVALUATION_CONTEXT,mode: 'joint' as DecisionMode, workface: '', mileage: 'K3601+200', params: DEFAULT_GEO_PARAMS_IV });
   const [origin,setOrigin] = useState<InputOrigin>(defaultOrigin);
   const baseline = useRef({ params:DEFAULT_GEO_PARAMS_IV,origin:defaultOrigin() });
   const [syncing,setSyncing] = useState(false);
@@ -78,6 +80,7 @@ export function useDecision() {
     return () => { live = false; };
   }, [invalidate, metaRetry]);
 
+  const changeEvaluationContext = useCallback((evaluationContext:EvaluationContext) => { invalidate();setInput((prev) => ({ ...prev,evaluationContext })); },[invalidate]);
   const changeMode = useCallback((mode: DecisionMode) => { invalidate(); setInput((prev) => ({ ...prev, mode })); }, [invalidate]);
   const updateParam = useCallback(<K extends keyof GeoParams>(key: K, value: GeoParams[K]) => {
     invalidate(); setInput((prev) => ({ ...prev, params: { ...prev.params, [key]: value } }));
@@ -160,7 +163,7 @@ export function useDecision() {
       }
       const result=await designSupportCandidates({ ...request,template });
       if (!sameAlgorithm(state.algorithm,result.algorithm)) throw new Error('规则或模板版本变化，请重新匹配');
-      if (epoch.current === current) setState((prev) => ({ ...prev,...result,template,scheme:null,saveRequest:null,needsCheck:false,adjusted:new Set(),step:3,
+      if (epoch.current === current) setState((prev) => ({ ...prev,...result,baselineSafety:result.safety,template,scheme:null,saveRequest:null,needsCheck:false,adjusted:new Set(),step:3,
         revisions:[...prev.revisions,revision(methodKey,result.support,'初始支护设计',template,state.manualReason)] }));
     } catch (reason: unknown) { if (epoch.current === current) setError(message(reason)); }
     finally { if (epoch.current === current) setLoading(null); }
@@ -180,7 +183,7 @@ export function useDecision() {
 
   const recheck = useCallback(async () => {
     if (!state.selectedMethodKey || !state.support.length) return;
-    const current=++epoch.current;setChecking(true);setReporting(false);setError(null);
+    const current=++epoch.current;setChecking(true);setReporting(false);setError(null);setState((prev) => ({ ...prev,safety:null,scheme:null,saveRequest:null,needsCheck:true }));
     try {
       const safety=await recheckSupport({ ...input,params:suppliedParams(input.params,origin.missing),methodKey:state.selectedMethodKey,support:state.support,
         template:state.template,manualReason:state.manualReason,algorithm:state.algorithm ?? undefined });
@@ -200,7 +203,7 @@ export function useDecision() {
       if (!sameAlgorithm(state.algorithm, scheme.algorithm)) throw new Error('算法版本已变化，请重新推理');
       const saveRequest: SaveDecisionRequest = { ...input,params:suppliedParams(input.params,origin.missing),observationId:origin.observationId, requestKey: crypto.randomUUID(), revisions: structuredClone(state.revisions),
         ...(state.algorithm ? { algorithm: state.algorithm } : {}) };
-      if (epoch.current === current) setState((prev) => ({ ...prev, scheme, step: 4, saveRequest }));
+      if (epoch.current === current) setState((prev) => ({ ...prev, scheme:{ ...scheme,baselineEvaluation:state.baselineSafety }, step: 4, saveRequest }));
     } catch (reason: unknown) { if (epoch.current === current) setError(message(reason)); }
     finally { if (epoch.current === current) setReporting(false); }
   }, [input, state, checking,origin.observationId,origin.missing]);
@@ -211,6 +214,6 @@ export function useDecision() {
   }, []);
   const selectedMethod = useMemo(() => state.methods.find((method) => method.key === state.selectedMethodKey) ?? null, [state.methods, state.selectedMethodKey]);
   return { ...input, ...state,origin,syncing,synchronize,selectTemplate,setManualReason, selectedMethod, loading, checking, reporting, error, meta, metaReady,
-    retryMeta: () => setMetaRetry((value) => value + 1), changeMode, updateParam, changeWorkface, changeMileage,
+    changeEvaluationContext, retryMeta: () => setMetaRetry((value) => value + 1), changeMode, updateParam, changeWorkface, changeMileage,
     runInfer, selectMethod, confirmMethod, adjustSupport, recheck, buildScheme, backToMethod, reset: invalidate, resetParams };
 }

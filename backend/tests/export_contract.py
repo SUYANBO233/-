@@ -12,10 +12,10 @@ from app.main import create_app
 from tests.common import PARAMS, save_request
 
 
-def contract_cases(d1: bool = False) -> dict:
+def contract_cases(d1: bool = False, d2: bool = False) -> dict:
     if d1:
-        catalog = Catalog.model_validate_json((Path(__file__).resolve().parents[2]/'tests/fixtures/d1-catalog.json').read_text())
-        application = create_app(Settings(),repository=FrozenCatalogRepository(catalog))
+        catalog = Catalog.model_validate_json((Path(__file__).resolve().parents[2]/('tests/fixtures/d2-catalog.json' if d2 else 'tests/fixtures/d1-catalog.json')).read_text())
+        application = create_app(Settings(response_factory='app.algorithms.response.test_provider:create_provider',allow_test_responses=True) if d2 else Settings(),repository=FrozenCatalogRepository(catalog))
     else:
         application = create_app(Settings(algorithm_factory='app.algorithms.reference:create_algorithm'))
     with TestClient(application) as client:
@@ -24,12 +24,13 @@ def contract_cases(d1: bool = False) -> dict:
             response.raise_for_status()
             return response.json()
         meta = client.get('/api/decision/meta').json()
-        inference = post('infer-methods', {'params':PARAMS})
-        design = post('design-support', {'params':PARAMS,'methodKey':'bench'})
-        request = {'params':PARAMS,'methodKey':'bench','support':design['support']}
+        context={'evaluationContext':{'sectionId':'test-section-a','stage':'initial-support','displacementReference':'since-excavation'}} if d2 else {}
+        inference = post('infer-methods', {'params':PARAMS,**context})
+        design = post('design-support', {'params':PARAMS,'methodKey':'bench',**context})
+        request = {**context,'params':PARAMS,'methodKey':'bench','support':design['support']}
         safety = post('recheck-safety',request)
         report = post('generate-scheme',{**request,'mileage':'K3601+200'})
-        save = save_request()
+        save = {**save_request(),**context}
         save['requestKey'] = '9348484b-2e51-44c6-a27b-5b6fe22cfe53'
         save['algorithm'] = meta['algorithm']
         if d1:
@@ -40,7 +41,7 @@ def contract_cases(d1: bool = False) -> dict:
         cases = {'meta':meta,'inference':inference,'design':design,'safety':safety,'report':report,'save':save,'snapshot':snapshot}
         if d1:
             cases['synchronize'] = post('synchronize',{'workface':'test_face_a','mileage':'K3601+200'})
-            cases['options'] = post('support-options',{'params':PARAMS,'methodKey':'bench'})
+            cases['options'] = post('support-options',{'params':PARAMS,'methodKey':'bench',**context})
         return cases
 
 
@@ -57,5 +58,5 @@ if __name__ == '__main__':
         request['algorithm'] = algorithm.info.model_dump(by_alias=True)
         data = DecisionService(algorithm, repository).snapshot(SaveDecisionRequest.model_validate(request)).model_dump(by_alias=True)
     else:
-        data = contract_cases(d1='--d1' in sys.argv)
+        data = contract_cases(d1='--d1' in sys.argv or '--d2' in sys.argv,d2='--d2' in sys.argv)
     print(json.dumps(data,ensure_ascii=False))

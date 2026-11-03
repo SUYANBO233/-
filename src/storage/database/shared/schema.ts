@@ -182,3 +182,10 @@ export const decisionRule = pgTable('decision_rule', {
   templateCode: text('template_code'), templateVersion: integer('template_version'),
   source: text('source').notNull(), testBatchId: text('test_batch_id'), createdAt: createdAt(),
 }, (t) => [uniqueIndex('decision_rule_code_version_uidx').on(t.code,t.version)]);
+
+/** D2 versioned deformation criteria; published content is immutable. */
+export const evaluationCriterion = pgTable('evaluation_criterion', {
+  id: serial('id').primaryKey(),code: text('code').notNull(),version: integer('version').notNull(),
+  enabled: boolean('enabled').notNull(),definition: jsonb('definition').notNull(),
+  createdAt: timestamp('created_at',{ withTimezone:true }).defaultNow().notNull(),
+},(table) => [uniqueIndex('evaluation_criterion_code_version_uidx').on(table.code,table.version),uniqueIndex('evaluation_criterion_active_uidx').on(table.code).where(sql`${table.enabled} = true`)]);

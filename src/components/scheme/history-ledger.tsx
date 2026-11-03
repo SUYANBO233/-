@@ -289,7 +289,7 @@ export function HistoryLedger({ faces, records: seed, canDelete=false, localTest
                   衬砌类型
                 </th>
                 <th className="whitespace-nowrap border-b border-line px-3 py-2.5 text-center font-semibold text-ink-2">
-                  安全度
+                  评价摘要
                 </th>
                 <th className="px-3 py-2.5 text-center text-ink-2">操作</th>
               </tr>
@@ -356,7 +356,7 @@ export function HistoryLedger({ faces, records: seed, canDelete=false, localTest
                           </b>
                         </td>
                         <td className="px-3 py-2.5 text-center align-middle">
-                          <b className={cn("font-semibold tabular-nums",h.score === null ? "text-warn":"text-ink-2")}>{h.score ?? '无法评价'}</b>
+                          <b className={cn("font-semibold tabular-nums",h.score === null ? "text-warn":"text-ink-2")}>{h.score!==null ? `旧版参考 ${h.score}` : (h.evaluationStatus==='satisfied' ? '变形范围内满足':h.evaluationStatus==='unsatisfied' ? '变形不满足':'无法评价')}</b>
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           {canDelete ? <Button variant="ghost" size="sm" className="text-destructive" aria-label={`删除记录 ${h.id}`} disabled={deleteBusy} onClick={() => askDelete(h)}>删除</Button> : '—'}

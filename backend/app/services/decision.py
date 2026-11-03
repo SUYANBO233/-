@@ -109,7 +109,7 @@ class DecisionService:
                 'originalParams':record.params,'modified':geo_values(request.params) != record.params,'testBatchId':record.test_batch_id}
         revisions = []
         for item in request.revisions:
-            design = DesignRequest(params=request.params, method_key=item.method_key, workface=request.workface, mileage=request.mileage,template=item.template,manual_reason=item.manual_reason)
+            design = DesignRequest(evaluation_context=request.evaluation_context,params=request.params, method_key=item.method_key, workface=request.workface, mileage=request.mileage,template=item.template,manual_reason=item.manual_reason)
             support = self.algorithm.design(design, item.values)
             check = RecheckRequest(**design.model_dump(), support=support)
             template = self.algorithm.chosen_template(design) if isinstance(self.algorithm,TemplateAlgorithm) else None
@@ -118,12 +118,17 @@ class DecisionService:
                 template=template.model_dump(mode='json',by_alias=True) if template else None,rules=rules,
                 safety=self.assess(check), reason=f'{item.reason}；人工选择理由：{item.manual_reason}' if item.manual_reason else item.reason))
         last = revisions[-1]
-        report = self.report(GenerateRequest(params=request.params, method_key=last.method_key,
+        report = self.report(GenerateRequest(evaluation_context=request.evaluation_context,params=request.params, method_key=last.method_key,
                                              mileage=request.mileage, workface=request.workface, support=last.support,template=request.revisions[-1].template,manual_reason=request.revisions[-1].manual_reason))
-        return DecisionPayload(request_key=request.request_key, mode=request.mode, workface=request.workface,
-            channel='mock' if info.reference else 'real', source='simulation' if info.reference else 'algorithm',
+        # Test provenance is independent from transport and the legacy reference flag.
+        configurable=isinstance(self.algorithm,TemplateAlgorithm)
+        is_test=(origin.get('source')=='simulation' or self.algorithm.catalog.data_source=='local-test'
+            or any(rule.source=='simulation' for rule in self.algorithm.catalog.rules if rule.enabled)
+            or any(item.safety.is_test or (item.template and item.template.get('source')=='simulation') for item in revisions)) if configurable else info.reference
+        return DecisionPayload(is_test=bool(is_test),request_key=request.request_key, mode=request.mode, workface=request.workface,
+            channel='real' if configurable else ('mock' if info.reference else 'real'), source='simulation' if is_test else 'algorithm',
             algorithm_version=f'{info.id}:{info.version}',
-            input=InputSnapshot(params=request.params, mileage=request.mileage, workface=request.workface,origin=origin),
+            input=InputSnapshot(evaluation_context=request.evaluation_context,params=request.params, mileage=request.mileage, workface=request.workface,origin=origin),
             candidates=self.infer(InferRequest(params=request.params, workface=request.workface, mileage=request.mileage)).methods,
             revisions=revisions, report=ReportSnapshot(mile=report.mile, grade=report.grade, method=report.method,
-                                                       rows=report.rows, algorithm=info))
+                                                       rows=report.rows, algorithm=info,evaluation=last.safety,baseline_evaluation=report.baseline_evaluation or revisions[0].safety))

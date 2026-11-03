@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { evaluationContextSchema } from '../response';
 import { algorithmInfoSchema } from './decision-response';
 import type { SaveDecisionRequest } from '@/lib/types';
 
@@ -6,6 +7,7 @@ import { geoParamsSchema } from './geo';
 export { geoParamsSchema } from './geo';
 
 export const saveDecisionSchema = z.object({
+  evaluationContext:evaluationContextSchema.nullable().optional(),
   observationId:z.uuid().nullable().optional(),
   algorithm: algorithmInfoSchema.optional(),
   requestKey: z.uuid(), mode: z.enum(['joint','manual']),

@@ -6,6 +6,7 @@ import { EquipmentTable } from "./equipment-table";
 import { MethodLibrary } from "./method-library";
 import { MappingTable } from "./mapping-table";
 import { SchemeLibrary } from "./scheme-library";
+import { EvaluationCriteriaManager } from './evaluation-criteria-manager';
 import { DecisionCatalogManager } from './decision-catalog-manager';
 
 type SubTab = "methods" | "support" | "equipment";
@@ -51,7 +52,7 @@ export function ExperienceTabs({ data }: { data: KnowledgeData }) {
           </>
         )}
         {active === "support" && (
-          <><DecisionCatalogManager focus="templates" /><SchemeLibrary title={`旧资料展示 · ${data.schemeTitle}`} data={data.schemes} /></>
+          <><DecisionCatalogManager focus="templates" /><EvaluationCriteriaManager /><SchemeLibrary title={`旧资料展示 · ${data.schemeTitle}`} data={data.schemes} /></>
         )}
         {active === "equipment" && (
           <EquipmentTable title={data.equipmentTitle} data={data.equipment} />

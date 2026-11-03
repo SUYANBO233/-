@@ -28,7 +28,11 @@
     "d1:fixtures": "tsx scripts/d1-fixtures.ts",
     "d1:export-fixtures": "tsx scripts/d1-fixtures.ts --export",
     "test:d1": "tsx --test tests/d1-catalog.test.ts",
-    "test:d1:browser": "playwright test"
+    "test:d1:browser": "playwright test",
+    "dev:d2": "tsx scripts/dev-all.ts --d2",
+    "d2:export-fixtures": "tsx scripts/d1-fixtures.ts --d2 --export",
+    "test:d2:browser": "D2_BROWSER=true playwright test",
+    "test:d2": "tsx --test tests/d2-evaluation.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",

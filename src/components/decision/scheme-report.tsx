@@ -1,6 +1,7 @@
 'use client';
 
 import type { SchemeReport } from '@/lib/types';
+import { ResponseEvaluation } from './response-evaluation';
 import { Button } from '@/components/ui/button';
 
 interface SchemeReportViewProps {
@@ -69,6 +70,8 @@ export function SchemeReportView({ scheme, onSave, saving = false, saved = false
             </tbody>
           </table>
         </div>
+
+        {scheme.evaluation && <div className="my-4"><ResponseEvaluation safety={scheme.evaluation} baseline={scheme.baselineEvaluation} /></div>}
 
         {onSave && <div className="flex justify-end">
           <Button

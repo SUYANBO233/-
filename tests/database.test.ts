@@ -27,7 +27,7 @@ function payload() {
   return { ...decisionPayloadSchema.parse(fixture), requestKey: randomUUID() };
 }
 
-test('14 表迁移、初始化及事务保存', async (t) => {
+test('15 表迁移、初始化及事务保存', async (t) => {
   const db = new PGlite();
   const client = clientFor(db);
   try {
@@ -36,14 +36,14 @@ test('14 表迁移、初始化及事务保存', async (t) => {
       await migrateDatabase(client);
       await migrateDatabase(client);
       const tables = Object.entries(schema).filter(([name]) => name !== 'healthCheck');
-      assert.equal(tables.length, 14);
+      assert.equal(tables.length, 15);
       for (const [, table] of tables) {
         const config = getTableConfig(table);
         const result = await db.query<{ column_name: string }>('SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2', ['public', config.name]);
         assert.deepEqual(result.rows.map((row) => row.column_name).sort(), config.columns.map((column) => column.name).sort(), config.name);
       }
       const migrations = await db.query('SELECT * FROM schema_migration');
-      assert.equal(migrations.rows.length, 7);
+      assert.equal(migrations.rows.length, 8);
     });
     await t.test('初始化幂等；保留用户修改；种子主键不影响后续新增', async () => {
       await seedDatabase(client);

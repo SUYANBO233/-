@@ -6,6 +6,8 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from app.algorithms.base import AlgorithmInputError
+from app.algorithms.response.base import UnavailableProvider, ResponseProvider, predict_bounded
+from app.algorithms.evaluation import evaluate
 from app.algorithms.rule_matching import match_rule, matches
 from app.models import (
     AlgorithmInfo, ArchMechanism, Catalog, DesignRequest, GenerateRequest, GeoParams,
@@ -16,16 +18,24 @@ from app.repositories.catalog import CatalogRepository
 
 
 class ConfigurableAlgorithm:
-    def __init__(self, repository: CatalogRepository):
+    def __init__(self, repository: CatalogRepository, provider:ResponseProvider | None=None, allow_test:bool=False, response_timeout:float=5.0) -> None:
+        self.provider=provider or UnavailableProvider()
+        self.allow_test=allow_test
+        if self.provider.info.is_test and not allow_test: raise ValueError("test provider requires explicit test mode")
+        if not 0.01 <= response_timeout <= 60: raise ValueError("response timeout outside [0.01,60]")
+        self.response_timeout=response_timeout
         self.catalog: Catalog = repository.read()
         content = self.catalog.model_dump(mode='json',by_alias=True)
-        self._version = '1.0.0+' + sha256(json.dumps(content,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()[:20]
+        content['responseProvider']=self.provider.info.model_dump(mode='json',by_alias=True)
+        content['allowTest']=allow_test
+        content['responseTimeout']=response_timeout
+        self._version = '2.0.0+' + sha256(json.dumps(content,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()[:20]
 
     @property
     def info(self) -> AlgorithmInfo:
         return AlgorithmInfo(id='database-rules',version=self._version,reference=True,
-            capabilities=['partial-input','template-selection','observation-sync'],
-            description='数据库条件规则与完整支护模板；尚未接入力学响应预测和安全判据。测试资料均带来源与批次。')
+            capabilities=['partial-input','template-selection','observation-sync','deformation-evaluation'],
+            description='数据库规则、完整模板与分项变形评价；'+self.provider.info.description)
 
     def infer(self, request: InferRequest) -> list[MethodMatch]:
         params = geo_values(request.params)
@@ -110,9 +120,11 @@ class ConfigurableAlgorithm:
             conf=None,parameters=data.model_dump(by_alias=True),color=color) for key,label,spec,layout,value,unit,data,color in details]
 
     def assess(self, request: RecheckRequest) -> SafetyAssessment:
-        self.design(request,SupportValues.model_validate({item.key:item.val_num for item in request.support}))
-        return SafetyAssessment(status='unavailable',scope='尚未启用安全评价',tag='无法评价',score=None,radar=None,
-            reason='D1 已完成规则与模板配置；力学响应模型和控制判据尚未接入，不能据此认定变形或支护承载满足。',algorithm=self.info)
+        from app.models import StructuredSupport
+        components=self.design(request,SupportValues.model_validate({item.key:item.val_num for item in request.support}))
+        complete=StructuredSupport.model_validate({item.key:item.parameters for item in components})
+        response=predict_bounded(self.provider,request,request.method_key,complete,self.response_timeout)
+        return evaluate(response,self.catalog.criteria,geo_values(request.params).get('section'),self.allow_test).model_copy(update={'algorithm':self.info})
 
     def mechanism(self, _params: GeoParams) -> ArchMechanism | None:
         return None
@@ -122,9 +134,11 @@ class ConfigurableAlgorithm:
         method = next(item for item in self.catalog.methods if item.key == request.method_key)
         rows = [SchemeRow(process='开挖工法',spec=method.name,quantity='施工进尺待确定',basis='按本轮规则与人工确认结果')]
         rows += [SchemeRow(process=item.label,spec=item.spec,quantity=item.layout,basis=item.basis) for item in support]
-        rows += [SchemeRow(process='评价状态',spec='待复核：无法评价',quantity='未接入响应模型与判据',basis='不包含结构安全结论')]
+        evaluation=self.assess(request)
+        baseline=self.assess(request.model_copy(update={'support':self.design(request)}))
+        rows += [SchemeRow(process='变形控制评价',spec=evaluation.tag,quantity=evaluation.scope,basis='待工程复核；不包含支护承载结论')]
         return SchemeReport(no=f'预览-{uuid4()}',time=datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M'),
-            mile=request.mileage,grade=str(geo_values(request.params).get('grade','未提供')),method=method.name,rows=rows,algorithm=self.info)
+            mile=request.mileage,grade=str(geo_values(request.params).get('grade','未提供')),method=method.name,rows=rows,algorithm=self.info,evaluation=evaluation,baseline_evaluation=baseline)
 
 
 def create_algorithm(repository: CatalogRepository) -> ConfigurableAlgorithm:

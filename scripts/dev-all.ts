@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 
+const explicitLocalPath=process.env.DECISION_LOCAL_TEST_PATH;
 config({ path:[path.resolve('.env.local'),path.resolve('.env')],quiet:true });
 process.env.DECISION_CATALOG_API_KEY ||= randomBytes(32).toString('hex');
 process.env.DECISION_CATALOG_URL ||= `http://127.0.0.1:${process.env.DEPLOY_RUN_PORT || 5000}/api/internal/decision-catalog`;
@@ -94,11 +95,19 @@ process.on('SIGINT',() => stop(0));
 process.on('SIGTERM',() => stop(0));
 async function main():Promise<void> {
   await checkBackendPort();
-  if (process.argv.includes('--local-test')) {
+  if (process.argv.includes('--local-test') || process.argv.includes('--d2')) {
     process.env.DECISION_DATA_SOURCE='local-test';
     process.env.DECISION_ALGORITHM_FACTORY='app.algorithms.configurable:create_algorithm';
-    await task('pnpm',['d1:fixtures']);
-    console.info('D1 临时测试模式：隔离本地数据库，无 Supabase 写入。');
+    if (process.argv.includes('--d2')) {
+      process.env.DECISION_ALLOW_TEST_RESPONSES='true';
+      process.env.DECISION_RESPONSE_FACTORY='app.algorithms.response.test_provider:create_provider';
+      process.env.DECISION_LOCAL_TEST_PATH = explicitLocalPath || process.env.DECISION_D2_LOCAL_TEST_PATH || '.local/decision-d2-test';
+    } else {
+      process.env.DECISION_ALLOW_TEST_RESPONSES='false';
+      process.env.DECISION_RESPONSE_FACTORY='app.algorithms.response.base:create_unavailable';
+    }
+    await task('pnpm',['d1:fixtures',...(process.argv.includes('--d2') ? ['--d2']:[])]);
+    console.info(process.argv.includes('--d2') ? 'D2 临时测试模式：合成响应与判据，仅软件测试；隔离本地数据库，无 Supabase 写入。':'D1 临时测试模式：隔离本地数据库，无 Supabase 写入。');
   }
   const browser=process.argv.includes('--browser-test');
   if (browser) await task('pnpm',['exec','next','build']);

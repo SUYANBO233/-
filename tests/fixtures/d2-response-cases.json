@@ -1,0 +1,146 @@
+[
+  {
+    "key": "steel",
+    "value": 40,
+    "settlement": 7,
+    "convergence": 5.25
+  },
+  {
+    "key": "steel",
+    "value": 60,
+    "settlement": 7.5,
+    "convergence": 5.625
+  },
+  {
+    "key": "steel",
+    "value": 80,
+    "settlement": 8,
+    "convergence": 6.0
+  },
+  {
+    "key": "steel",
+    "value": 120,
+    "settlement": 9,
+    "convergence": 6.75
+  },
+  {
+    "key": "steel",
+    "value": 160,
+    "settlement": 10,
+    "convergence": 7.5
+  },
+  {
+    "key": "steel",
+    "value": 240,
+    "settlement": 12,
+    "convergence": 9.0
+  },
+  {
+    "key": "shot",
+    "value": 11,
+    "settlement": 10,
+    "convergence": 7.5
+  },
+  {
+    "key": "shot",
+    "value": 22,
+    "settlement": 8,
+    "convergence": 6.0
+  },
+  {
+    "key": "shot",
+    "value": 44,
+    "settlement": 7,
+    "convergence": 5.25
+  },
+  {
+    "key": "shot",
+    "value": 10,
+    "settlement": 10.4,
+    "convergence": 7.8
+  },
+  {
+    "key": "shot",
+    "value": 20,
+    "settlement": 8.2,
+    "convergence": 6.15
+  },
+  {
+    "key": "shot",
+    "value": 40,
+    "settlement": 7.1,
+    "convergence": 5.325
+  },
+  {
+    "key": "anchor",
+    "value": 1,
+    "settlement": 12,
+    "convergence": 9.0
+  },
+  {
+    "key": "anchor",
+    "value": 1.5,
+    "settlement": 10,
+    "convergence": 7.5
+  },
+  {
+    "key": "anchor",
+    "value": 2,
+    "settlement": 9,
+    "convergence": 6.75
+  },
+  {
+    "key": "anchor",
+    "value": 3,
+    "settlement": 8,
+    "convergence": 6.0
+  },
+  {
+    "key": "anchor",
+    "value": 4,
+    "settlement": 7.5,
+    "convergence": 5.625
+  },
+  {
+    "key": "anchor",
+    "value": 6,
+    "settlement": 7,
+    "convergence": 5.25
+  },
+  {
+    "key": "advance",
+    "value": 20,
+    "settlement": 7,
+    "convergence": 5.25
+  },
+  {
+    "key": "advance",
+    "value": 30,
+    "settlement": 7.5,
+    "convergence": 5.625
+  },
+  {
+    "key": "advance",
+    "value": 40,
+    "settlement": 8,
+    "convergence": 6.0
+  },
+  {
+    "key": "advance",
+    "value": 60,
+    "settlement": 9,
+    "convergence": 6.75
+  },
+  {
+    "key": "advance",
+    "value": 70,
+    "settlement": 9.5,
+    "convergence": 7.125
+  },
+  {
+    "key": "advance",
+    "value": 80,
+    "settlement": 10,
+    "convergence": 7.5
+  }
+]
